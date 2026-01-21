@@ -1,0 +1,49 @@
+-- TrackingCF Database Schema
+-- MySQL 8.0+
+
+CREATE DATABASE IF NOT EXISTS tracking_cf CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE tracking_cf;
+
+-- Tabla de usuarios
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    handle VARCHAR(100) NOT NULL UNIQUE,
+    avatar_url VARCHAR(500) NULL,
+    rating INT NULL,
+    `rank` VARCHAR(50) NULL,
+    last_submission_time TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_handle (handle)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla de submissions
+CREATE TABLE IF NOT EXISTS submissions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    contest_id INT NOT NULL,
+    problem_index VARCHAR(10) NOT NULL,
+    problem_name VARCHAR(255) NOT NULL,
+    rating INT NULL,
+    tags JSON NULL,
+    submission_time TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_submission (user_id, contest_id, problem_index),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_time (user_id, submission_time DESC),
+    INDEX idx_user_rating (user_id, rating),
+    INDEX idx_submission_time (submission_time DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla de estadísticas (caché)
+CREATE TABLE IF NOT EXISTS user_stats (
+    user_id INT PRIMARY KEY,
+    total_score INT DEFAULT 0,
+    count_no_rating INT DEFAULT 0,
+    count_800_900 INT DEFAULT 0,
+    count_1000 INT DEFAULT 0,
+    count_1100 INT DEFAULT 0,
+    count_1200_plus INT DEFAULT 0,
+    last_calculated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
