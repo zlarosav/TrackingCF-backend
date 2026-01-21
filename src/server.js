@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 3001;
 const allowedOrigins = [
   'http://localhost:3000',
   'https://zlarosav.github.io',
+  'https://tracking-cf-frontend.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
