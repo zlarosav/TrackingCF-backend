@@ -3,7 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const usersRouter = require('./routes/users');
 const submissionsRouter = require('./routes/submissions');
-require('./jobs/cronTracker'); // Iniciar cron job
+require('./jobs/cronTracker'); // Iniciar cron job de tracking
+require('./jobs/cronStreakReset'); // Iniciar cron job de reset de rachas
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -11,7 +12,6 @@ const PORT = process.env.PORT || 3001;
 // Middleware - CORS para desarrollo y producción
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://zlarosav.github.io',
   'https://tracking-cf-frontend.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);

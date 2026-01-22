@@ -7,8 +7,11 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "db:init": "node src/scripts/initDb.js",
+    "db:delete": "node src/scripts/deleteDb.js",
     "user:create": "node src/scripts/createUser.js",
     "user:delete": "node src/scripts/deleteUser.js",
+    "user:rename": "node src/scripts/renameUser.js",
+    "user:toggle": "node src/scripts/toggleUser.js",
     "tracker:run": "node src/scripts/runTracker.js",
     "tracker:force": "node src/scripts/runTracker.js --force"
   },

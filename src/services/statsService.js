@@ -133,15 +133,24 @@ async function getUserDetailedStats(userId) {
       [userId]
     );
 
-    // Progreso temporal (por mes)
+    // Progreso temporal (por día con score calculado)
     const [temporalProgress] = await db.query(
       `SELECT 
-         DATE_FORMAT(submission_time, '%Y-%m') as month,
-         COUNT(*) as count
+         DATE(submission_time) as month,
+         SUM(
+           CASE 
+             WHEN rating IS NULL OR rating = 0 THEN 1
+             WHEN rating >= 800 AND rating <= 900 THEN 1
+             WHEN rating = 1000 THEN 2
+             WHEN rating = 1100 THEN 3
+             WHEN rating >= 1200 THEN 5
+             ELSE 0
+           END
+         ) as count
        FROM submissions
        WHERE user_id = ?
-       GROUP BY month
-       ORDER BY month ASC`,
+       GROUP BY DATE(submission_time)
+       ORDER BY DATE(submission_time) ASC`,
       [userId]
     );
 

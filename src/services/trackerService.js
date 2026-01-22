@@ -1,5 +1,6 @@
 const { DateTime } = require('luxon');
-const { getUserSubmissions } = require('./codeforcesService');
+const codeforcesService = require('./codeforcesService');
+const { getUserSubmissions } = codeforcesService;
 const User = require('../models/User');
 const Submission = require('../models/Submission');
 const { calculateUserStats } = require('./statsService');
@@ -35,7 +36,9 @@ function filterValidSubmissions(submissions) {
  * @returns {Object} Submission formateada
  */
 function formatSubmission(sub) {
-  const submissionTime = DateTime.fromSeconds(sub.creationTimeSeconds)
+  // Codeforces devuelve timestamps en UTC
+  // Convertir a timezone de Lima (America/Lima)
+  const submissionTime = DateTime.fromSeconds(sub.creationTimeSeconds, { zone: 'utc' })
     .setZone('America/Lima')
     .toISO();
 
@@ -64,10 +67,9 @@ async function trackUser(handle) {
       throw new Error(`Usuario ${handle} no encontrado en la base de datos`);
     }
 
-    // Obtener info del usuario desde Codeforces (avatar, rating, etc)
+    // Obtener información actualizada del usuario
     try {
-      const { getUserInfo } = require('./codeforcesService');
-      const userInfo = await getUserInfo(handle);
+      const userInfo = await codeforcesService.getUserInfo(handle);
       
       await User.updateUserInfo(user.id, {
         avatarUrl: userInfo.avatar || userInfo.titlePhoto || null,
@@ -76,7 +78,19 @@ async function trackUser(handle) {
         lastSubmissionTime: user.last_submission_time
       });
     } catch (err) {
-      console.log(`⚠️  No se pudo obtener info de usuario de ${handle}`);
+      // Detectar si el handle ya no existe en Codeforces
+      if (err.response?.status === 404 || 
+          err.message?.includes('not found') ||
+          err.message?.includes('handles: Incorrect parameter')) {
+        // Handle no existe - inhabilitar usuario
+        await User.updateEnabled(user.id, false);
+        console.log(`❌ ${handle} - Usuario no encontrado en Codeforces, cuenta inhabilitada`);
+        return { handle, newSubmissions: 0, error: 'User not found - account disabled' };
+      }
+      
+      // Otros errores (API caída, timeout, etc.) - NO inhabilitar
+      console.log(`⚠️  ${handle} - Error temporal obteniendo info (API caída?): ${err.message}`);
+      // Continuar con el tracking normal
     }
 
     // Obtener la última submission guardada
@@ -110,6 +124,7 @@ async function trackUser(handle) {
     // Actualizar el timestamp de la última submission si hay nuevas
     if (newCount > 0 && formattedSubmissions.length > 0) {
       const latestSubmission = formattedSubmissions[0]; // Ya están ordenadas por fecha
+      
       await User.updateUserInfo(user.id, {
         avatarUrl: user.avatar_url,
         rating: user.rating,

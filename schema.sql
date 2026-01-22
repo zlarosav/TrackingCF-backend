@@ -12,9 +12,13 @@ CREATE TABLE IF NOT EXISTS users (
     rating INT NULL,
     `rank` VARCHAR(50) NULL,
     last_submission_time TIMESTAMP NULL,
+    current_streak INT DEFAULT 0,
+    last_streak_date DATE NULL,
+    enabled BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_handle (handle)
+    INDEX idx_handle (handle),
+    INDEX idx_enabled (enabled)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla de submissions
