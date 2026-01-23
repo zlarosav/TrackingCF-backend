@@ -181,7 +181,7 @@ GET /api/submissions/latest             # Últimas submissions globales
 
 ### Estadísticas
 ```http
-GET /api/submissions/:handle/stats      # Stats por período
+GET /api/submissions/:handle/stats      # Stats por periodo
 ```
 
 **Parámetros query:**

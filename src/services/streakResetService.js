@@ -39,9 +39,9 @@ async function resetExpiredStreaks() {
         continue;
       }
       
-      // Convert last_streak_date to Lima timezone
+      // Convert last_streak_date to Lima timezone (interpret UTC 00:00 as Local 00:00)
       const lastStreakDate = DateTime.fromJSDate(new Date(user.last_streak_date), { zone: 'utc' })
-        .setZone(tz)
+        .setZone(tz, { keepLocalTime: true })
         .startOf('day');
       
       // Calculate days difference

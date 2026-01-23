@@ -4,6 +4,7 @@ const { getUserSubmissions } = codeforcesService;
 const User = require('../models/User');
 const Submission = require('../models/Submission');
 const { calculateUserStats } = require('./statsService');
+const db = require('../config/database');
 
 /**
  * Filtra submissions válidas (OK, fecha válida, sin duplicados)
@@ -36,11 +37,11 @@ function filterValidSubmissions(submissions) {
  * @returns {Object} Submission formateada
  */
 function formatSubmission(sub) {
-  // Codeforces devuelve timestamps en UTC
-  // Convertir a timezone de Lima (America/Lima)
+  // Codeforces devuelve timestamps en UTC (Unix timestamp)
+  // Guardar directamente en UTC sin conversión
+  // Formatear para MySQL (YYYY-MM-DD HH:MM:SS)
   const submissionTime = DateTime.fromSeconds(sub.creationTimeSeconds, { zone: 'utc' })
-    .setZone('America/Lima')
-    .toISO();
+    .toFormat('yyyy-MM-dd HH:mm:ss');
 
   return {
     contestId: sub.problem.contestId,
@@ -136,6 +137,12 @@ async function trackUser(handle) {
     // Recalcular estadísticas del usuario
     await calculateUserStats(user.id);
 
+    // Actualizar racha del usuario si hay nuevas submissions
+    if (newCount > 0 && formattedSubmissions.length > 0) {
+      const latestSubmission = formattedSubmissions[0]; // Ya están ordenadas por fecha
+      await User.updateStreakOnNewSubmission(user.id, latestSubmission.submissionTime);
+    }
+
     // Actualizar timestamp de última actualización
     await User.updateLastUpdated(user.id);
 
@@ -188,11 +195,34 @@ async function trackAllUsers() {
 
     console.log(`🎉 Tracking completado: ${totalNew} nuevas submissions, ${errors} errores`);
 
+    // Actualizar timestamp de ejecución global
+    await updateLastTrackerRun();
+
     return results;
 
   } catch (err) {
     console.error('❌ Error en trackAllUsers:', err.message);
     throw err;
+  }
+}
+
+/**
+ * Actualiza la fecha de última ejecución del tracker en la metadata
+ */
+async function updateLastTrackerRun() {
+  try {
+    const { DateTime } = require('luxon');
+    // Guardar timestamp UTC actual
+    const now = DateTime.now().toUTC().toFormat('yyyy-MM-dd HH:mm:ss');
+    
+    await db.query(
+      `INSERT INTO system_metadata (key_name, value, updated_at)
+       VALUES ('last_tracker_run', ?, ?)
+       ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)`,
+      [now, now]
+    );
+  } catch (err) {
+    console.error('⚠️  No se pudo actualizar metadata:', err.message);
   }
 }
 

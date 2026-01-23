@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
     const order = req.query.order || 'desc';
     const limit = req.query.limit ? parseInt(req.query.limit) : 20;
 
-    // Calcular fecha inicial según el período
+    // Calcular fecha inicial según el periodo
     let dateFrom = null;
     const now = new Date();
     

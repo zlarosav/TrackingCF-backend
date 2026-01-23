@@ -12,8 +12,10 @@ router.get('/', async (req, res) => {
   try {
     const period = req.query.period || 'all';
     const db = require('../config/database');
+    const { DateTime } = require('luxon');
+    const tz = process.env.TZ || 'America/Lima';
 
-    // Calcular fecha inicial según el período
+    // Calcular fecha inicial según el periodo
     let dateFilter = '';
     const params = [];
     
@@ -82,30 +84,30 @@ router.get('/', async (req, res) => {
     today.setHours(0, 0, 0, 0);
 
     const processedRows = rows.map(user => {
-      let streak_active = false;
-      
-      if (user.last_streak_date && user.current_streak > 0) {
-        const lastDate = new Date(user.last_streak_date);
-        lastDate.setHours(0, 0, 0, 0);
-        const daysDiff = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
-        
-        // Active if submission was today
-        streak_active = daysDiff === 0;
-        
-        // NOTE: Don't reset streak here - let the tracker handle it
-        // This endpoint should only READ the state, not modify it
-      }
-      
       return {
         ...user,
-        streak_active
+        streak_active: User.isStreakActive(user.last_streak_date, user.current_streak)
       };
     });
 
-    // Use current server time instead of last_updated to avoid MySQL timezone issues
-    const { DateTime } = require('luxon');
-    const tz = process.env.TZ || 'America/Lima';
-    const lastTrackerRun = DateTime.now().setZone(tz).toFormat('dd/MM/yyyy, hh:mm a');
+    // Obtener última ejecución real del tracker desde la BD (persistente)
+    let lastTrackerRun = 'Nunca';
+    try {
+      const [meta] = await db.query(
+        "SELECT value FROM system_metadata WHERE key_name = 'last_tracker_run'"
+      );
+      
+      if (meta.length > 0 && meta[0].value) {
+        // Interpretar date UTC y formatear a Local
+        lastTrackerRun = DateTime.fromSQL(meta[0].value, { zone: 'utc' })
+          .setZone(tz)
+          .toFormat('dd/MM/yyyy, hh:mm a');
+      }
+    } catch (err) {
+      console.error('Error leyendo last_tracker_run:', err.message);
+      // Fallback a "Ahora" si falla
+      lastTrackerRun = DateTime.now().setZone(tz).toFormat('dd/MM/yyyy, hh:mm a');
+    }
 
     res.json({
       success: true,
@@ -145,23 +147,11 @@ router.get('/:handle', async (req, res) => {
       });
     }
 
-    // Calculate if streak is active (submitted today in configured timezone)
-    const { DateTime } = require('luxon');
-    const tz = process.env.TZ || 'America/Lima';
-    const today = DateTime.now().setZone(tz).startOf('day');
-    
-    let streak_active = false;
-    if (user.last_streak_date && user.current_streak > 0) {
-      const lastStreakDate = DateTime.fromJSDate(new Date(user.last_streak_date), { zone: tz }).startOf('day');
-      const daysDiff = Math.floor(today.diff(lastStreakDate, 'days').days);
-      streak_active = daysDiff === 0;
-    }
-
     res.json({
       success: true,
       data: {
         ...user,
-        streak_active
+        streak_active: User.isStreakActive(user.last_streak_date, user.current_streak)
       }
     });
   } catch (err) {

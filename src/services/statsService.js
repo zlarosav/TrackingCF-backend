@@ -133,10 +133,25 @@ async function getUserDetailedStats(userId) {
       [userId]
     );
 
+    // Obtener offset del timezone configurado
+    const { DateTime } = require('luxon');
+    const tz = process.env.TZ || 'America/Lima';
+    const nowTz = DateTime.now().setZone(tz);
+    const offsetMinutes = nowTz.offset; // en minutos, ej: -300 para -05:00
+    
+    // Crear string de intervalo para MySQL (ej: "-05:00")
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const absMinutes = Math.abs(offsetMinutes);
+    const hours = Math.floor(absMinutes / 60);
+    const minutes = absMinutes % 60;
+    const intervalStr = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
     // Progreso temporal (por día con score calculado)
+    // Usamos DATE_ADD/SUB manual porque CONVERT_TZ puede fallar si no hay tablas de timezone
+    // DATE_FORMAT para devolver STRING 'YYYY-MM-DD' y evitar problemas de timezone en frontend
     const [temporalProgress] = await db.query(
       `SELECT 
-         DATE(submission_time) as month,
+         DATE_FORMAT(DATE_ADD(submission_time, INTERVAL ? HOUR_MINUTE), '%Y-%m-%d') as month,
          SUM(
            CASE 
              WHEN rating IS NULL OR rating = 0 THEN 1
@@ -149,9 +164,9 @@ async function getUserDetailedStats(userId) {
          ) as count
        FROM submissions
        WHERE user_id = ?
-       GROUP BY DATE(submission_time)
-       ORDER BY DATE(submission_time) ASC`,
-      [userId]
+       GROUP BY month
+       ORDER BY month ASC`,
+      [intervalStr, userId]
     );
 
     // Tags más frecuentes
