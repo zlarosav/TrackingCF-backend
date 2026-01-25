@@ -42,6 +42,20 @@ class Submission {
     return result.affectedRows;
   }
 
+  /**
+   * Helper to format submission date fields to ISO strings
+   */
+  static formatSubmission(sub) {
+    if (!sub) return null;
+    const formatted = { ...sub };
+    
+    if (formatted.submission_time instanceof Date) {
+      formatted.submission_time = formatted.submission_time.toISOString();
+    }
+    
+    return formatted;
+  }
+
   static async findByUser(userId, filters = {}) {
     let query = 'SELECT * FROM submissions WHERE user_id = ?';
     const params = [userId];

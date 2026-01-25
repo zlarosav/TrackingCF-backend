@@ -137,10 +137,12 @@ router.get('/:handle', async (req, res) => {
     const submissions = await Submission.findByUser(user.id, filters);
     const total = await Submission.countByUser(user.id, filters);
 
+    const formattedSubmissions = submissions.map(Submission.formatSubmission);
+
     res.json({
       success: true,
       data: {
-        submissions,
+        submissions: formattedSubmissions,
         pagination: {
           total,
           limit: filters.limit,
@@ -209,9 +211,11 @@ router.get('/:handle/latest', async (req, res) => {
 
     const submissions = await Submission.findLatestByUser(user.id, limit);
 
+    const formattedSubmissions = submissions.map(Submission.formatSubmission);
+
     res.json({
       success: true,
-      data: submissions
+      data: formattedSubmissions
     });
   } catch (err) {
     console.error('Error en GET /api/submissions/:handle/latest:', err.message);

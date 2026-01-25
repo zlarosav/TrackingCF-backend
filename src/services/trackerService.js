@@ -211,7 +211,6 @@ async function trackAllUsers() {
  */
 async function updateLastTrackerRun() {
   try {
-    const { DateTime } = require('luxon');
     // Guardar timestamp UTC actual
     const now = DateTime.now().toUTC().toFormat('yyyy-MM-dd HH:mm:ss');
     

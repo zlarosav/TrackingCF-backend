@@ -1,6 +1,26 @@
 const db = require('../config/database');
+const { DateTime } = require('luxon');
 
 class User {
+  /**
+   * Helper to format user date fields to ISO strings
+   */
+  /**
+   * Helper to format user date fields to ISO strings
+   */
+  static formatUser(user) {
+    if (!user) return null;
+    const dateFields = ['created_at', 'updated_at', 'last_updated', 'last_submission_time', 'last_streak_date'];
+    const formatted = { ...user };
+    
+    dateFields.forEach(field => {
+      if (formatted[field] instanceof Date) {
+        formatted[field] = formatted[field].toISOString();
+      }
+    });
+    return formatted;
+  }
+
   static async findAll() {
     const [rows] = await db.query(`
       SELECT u.*, 
@@ -118,7 +138,6 @@ class User {
    * @returns {Promise<{streak: number, lastDate: Date|null}>}
    */
   static async intelligentStreakCalculation(userId) {
-    const { DateTime } = require('luxon');
     
     // Get timezone from environment (defaults to America/Lima)
     const tz = process.env.TZ || 'America/Lima';
@@ -215,13 +234,12 @@ class User {
   static isStreakActive(lastStreakDate, currentStreak) {
     if (!lastStreakDate || !currentStreak || currentStreak <= 0) return false;
     
-    const { DateTime } = require('luxon');
     const tz = process.env.TZ || 'America/Lima';
     const today = DateTime.now().setZone(tz).startOf('day');
 
-    // Interpretar la fecha de la BD (UTC 00:00) como fecha local (Local 00:00)
+    // Convert DB timestamp (UTC) to User Timezone and get Start of Day
     const lastDate = DateTime.fromJSDate(new Date(lastStreakDate), { zone: 'utc' })
-      .setZone(tz, { keepLocalTime: true })
+      .setZone(tz)
       .startOf('day');
       
     const daysDiff = Math.floor(today.diff(lastDate, 'days').days);

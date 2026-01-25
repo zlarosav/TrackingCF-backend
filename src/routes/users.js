@@ -85,7 +85,7 @@ router.get('/', async (req, res) => {
 
     const processedRows = rows.map(user => {
       return {
-        ...user,
+        ...User.formatUser(user),
         streak_active: User.isStreakActive(user.last_streak_date, user.current_streak)
       };
     });
@@ -150,7 +150,7 @@ router.get('/:handle', async (req, res) => {
     res.json({
       success: true,
       data: {
-        ...user,
+        ...User.formatUser(user),
         streak_active: User.isStreakActive(user.last_streak_date, user.current_streak)
       }
     });

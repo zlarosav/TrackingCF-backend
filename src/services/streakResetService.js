@@ -1,5 +1,6 @@
 const { DateTime } = require('luxon');
 const db = require('../config/database');
+const codeforcesService = require('./codeforcesService');
 
 /**
  * Reset streaks for users who didn't submit yesterday
@@ -39,9 +40,9 @@ async function resetExpiredStreaks() {
         continue;
       }
       
-      // Convert last_streak_date to Lima timezone (interpret UTC 00:00 as Local 00:00)
+      // Convert last_streak_date to Lima timezone
       const lastStreakDate = DateTime.fromJSDate(new Date(user.last_streak_date), { zone: 'utc' })
-        .setZone(tz, { keepLocalTime: true })
+        .setZone(tz)
         .startOf('day');
       
       // Calculate days difference
@@ -92,7 +93,6 @@ async function updateUserAvatars() {
     
     console.log(`📊 Verificando avatares de ${users.length} usuarios...`);
     
-    const codeforcesService = require('./codeforcesService');
     let updatedCount = 0;
     
     for (const user of users) {
