@@ -3,8 +3,10 @@ const express = require('express');
 const cors = require('cors');
 const usersRouter = require('./routes/users');
 const submissionsRouter = require('./routes/submissions');
+const contestsRouter = require('./routes/contests');
 require('./jobs/cronTracker'); // Iniciar cron job de tracking
 require('./jobs/cronStreakReset'); // Iniciar cron job de reset de rachas
+require('./jobs/cronContests'); // Iniciar cron job de contests
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -44,6 +46,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/users', usersRouter);
 app.use('/api/submissions', submissionsRouter);
+app.use('/api/contests', contestsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -71,11 +74,17 @@ app.use((err, req, res, next) => {
   });
 });
 
+const { updateContests } = require('./services/contestService');
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌍 Timezone: ${process.env.TZ || 'UTC'}`);
+  
+  // Ejecutar actualización de contests al iniciar
+  console.log('🔄 Iniciando carga inicial de contests...');
+  updateContests();
 });
 
 module.exports = app;

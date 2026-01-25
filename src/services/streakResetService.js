@@ -40,10 +40,17 @@ async function resetExpiredStreaks() {
         continue;
       }
       
-      // Convert last_streak_date to Lima timezone
-      const lastStreakDate = DateTime.fromJSDate(new Date(user.last_streak_date), { zone: 'utc' })
-        .setZone(tz)
-        .startOf('day');
+      // Convert last_streak_date to String YYYY-MM-DD (Lima)
+      let lastDateStr;
+      if (user.last_streak_date instanceof Date) {
+          // If legacy Date object, convert to Lima
+          lastDateStr = DateTime.fromJSDate(user.last_streak_date, { zone: 'utc' }).setZone(tz).toISODate();
+      } else {
+          // If string, assume YYYY-MM-DD
+          lastDateStr = String(user.last_streak_date).substring(0, 10);
+      }
+      
+      const lastStreakDate = DateTime.fromISO(lastDateStr, { zone: tz }).startOf('day');
       
       // Calculate days difference
       const daysSince = Math.floor(today.diff(lastStreakDate, 'days').days);

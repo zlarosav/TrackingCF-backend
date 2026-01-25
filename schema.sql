@@ -52,6 +52,21 @@ CREATE TABLE IF NOT EXISTS user_stats (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Tabla de contests
+CREATE TABLE IF NOT EXISTS contests (
+    id VARCHAR(50) PRIMARY KEY, -- CF Contest ID or LC Slug
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50),
+    phase VARCHAR(50),
+    frozen BOOLEAN,
+    durationSeconds INT,
+    startTimeSeconds INT,
+    relativeTimeSeconds INT,
+    platform VARCHAR(50) DEFAULT 'CODEFORCES',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Tabla de metadata del sistema (configuración global persistente)
 CREATE TABLE IF NOT EXISTS system_metadata (
     key_name VARCHAR(50) PRIMARY KEY,

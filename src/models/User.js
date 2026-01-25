@@ -218,10 +218,11 @@ class User {
         }
     }
     
-    // Return the actual Date object corresponding to the latest submission day
+    // Return the Date String directly (YYYY-MM-DD) to ensure correct storage in DB
+    // preventing timezone shifts when saving to DATE column
     return { 
         streak, 
-        lastDate: dayToDateMap.get(lastSubmissionDay) 
+        lastDate: lastSubmissionDay // Returns string 'YYYY-MM-DD'
     };
   }
 
@@ -237,13 +238,37 @@ class User {
     const tz = process.env.TZ || 'America/Lima';
     const today = DateTime.now().setZone(tz).startOf('day');
 
-    // Convert DB timestamp (UTC) to User Timezone and get Start of Day
-    const lastDate = DateTime.fromJSDate(new Date(lastStreakDate), { zone: 'utc' })
-      .setZone(tz)
-      .startOf('day');
-      
-    const daysDiff = Math.floor(today.diff(lastDate, 'days').days);
-    return daysDiff === 0;
+    // Convert DB timestamp/string to User Timezone and get Start of Day
+    // Ensure we parse correctly whether it's a Date object or String
+    let lastDate;
+    if (lastStreakDate instanceof Date) {
+        lastDate = DateTime.fromJSDate(lastStreakDate, { zone: 'utc' });
+    } else {
+        // If it's a string YYYY-MM-DD, parsing as ISO in UTC is safe
+        // because YYYY-MM-DD implies 00:00:00 UTC
+        lastDate = DateTime.fromISO(String(lastStreakDate), { zone: 'utc' });
+    }
+    
+    // We want to compare DAYS.
+    // If lastStreakDate is '2026-01-24', we treat it as that specific day.
+    // We convert it to local timezone to ensure we are comparing "User's View" of days.
+    // Actually, if we store YYYY-MM-DD string representing the Local Day, 
+    // we should simply parse it as that Local Day.
+    
+    // Simplification: If we store "2026-01-24" (which accounts for Lima time), 
+    // we can just compare it to Today's Lima Date string.
+    
+    const todayStr = today.toISODate();
+    // If lastStreakDate is Date object, we need to convert to Local String first
+    let lastDateStr;
+    if (lastStreakDate instanceof Date) {
+        lastDateStr = DateTime.fromJSDate(lastStreakDate, { zone: 'utc' }).setZone(tz).toISODate();
+    } else {
+        // Assume string is YYYY-MM-DD
+        lastDateStr = String(lastStreakDate).substring(0, 10);
+    }
+    
+    return todayStr === lastDateStr;
   }
 }
 
