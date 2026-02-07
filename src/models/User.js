@@ -109,7 +109,6 @@ class User {
    */
   static async updateStreakOnNewSubmission(userId, latestSubmissionTime) {
     // Recalculate streak from scratch using history
-    // This repairs any broken streaks and ensures consistency
     const streakResult = await User.intelligentStreakCalculation(userId);
     
     // Update user record with new streak info
@@ -119,11 +118,6 @@ class User {
         [streakResult.streak, streakResult.lastDate, userId]
       );
     } else {
-       // Optional: Set to 0 if we want to enforce it, though usually we just leave it
-       // and let the daily reset job handle zeroing it out if it expires.
-       // But to be consistent with "recalculation", if history says 0, we should probably set 0.
-       // However, to avoid "flashing" 0 on a valid day before this runs, we'll trust the result.
-       // If streak is 0, let's update it to ensure truth.
        await db.query(
         'UPDATE users SET current_streak = 0, last_streak_date = NULL WHERE id = ?',
         [userId]
@@ -219,7 +213,6 @@ class User {
     }
     
     // Return the Date String directly (YYYY-MM-DD) to ensure correct storage in DB
-    // preventing timezone shifts when saving to DATE column
     return { 
         streak, 
         lastDate: lastSubmissionDay // Returns string 'YYYY-MM-DD'
@@ -236,39 +229,20 @@ class User {
     if (!lastStreakDate || !currentStreak || currentStreak <= 0) return false;
     
     const tz = process.env.TZ || 'America/Lima';
-    const today = DateTime.now().setZone(tz).startOf('day');
-
-    // Convert DB timestamp/string to User Timezone and get Start of Day
-    // Ensure we parse correctly whether it's a Date object or String
-    let lastDate;
-    if (lastStreakDate instanceof Date) {
-        lastDate = DateTime.fromJSDate(lastStreakDate, { zone: 'utc' });
-    } else {
-        // If it's a string YYYY-MM-DD, parsing as ISO in UTC is safe
-        // because YYYY-MM-DD implies 00:00:00 UTC
-        lastDate = DateTime.fromISO(String(lastStreakDate), { zone: 'utc' });
-    }
-    
-    // We want to compare DAYS.
-    // If lastStreakDate is '2026-01-24', we treat it as that specific day.
-    // We convert it to local timezone to ensure we are comparing "User's View" of days.
-    // Actually, if we store YYYY-MM-DD string representing the Local Day, 
-    // we should simply parse it as that Local Day.
-    
-    // Simplification: If we store "2026-01-24" (which accounts for Lima time), 
-    // we can just compare it to Today's Lima Date string.
-    
+    const today = DateTime.now().setZone(tz);
     const todayStr = today.toISODate();
-    // If lastStreakDate is Date object, we need to convert to Local String first
+
+    // Parse last_streak_date to string YYYY-MM-DD
     let lastDateStr;
     if (lastStreakDate instanceof Date) {
-        lastDateStr = DateTime.fromJSDate(lastStreakDate, { zone: 'utc' }).setZone(tz).toISODate();
+      lastDateStr = DateTime.fromJSDate(lastStreakDate, { zone: 'utc' }).setZone(tz).toISODate();
     } else {
-        // Assume string is YYYY-MM-DD
-        lastDateStr = String(lastStreakDate).substring(0, 10);
+      // Assume string is YYYY-MM-DD
+      lastDateStr = String(lastStreakDate).substring(0, 10);
     }
     
-    return todayStr === lastDateStr;
+    // Streak is active only if last submission was TODAY
+    return lastDateStr === todayStr;
   }
 }
 

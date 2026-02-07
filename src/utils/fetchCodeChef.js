@@ -7,7 +7,7 @@ const { DateTime } = require('luxon');
  */
 const fetchCodeChef = async () => {
     try {
-        console.log('Fetching CodeChef contests...');
+
         // Note: CodeChef API might require user agent?
         const response = await axios.get('https://www.codechef.com/api/list/contests/all', {
             timeout: 10000,
@@ -72,18 +72,8 @@ const fetchCodeChef = async () => {
 
         if (response.data.present_contests) processList(response.data.present_contests);
         if (response.data.future_contests) processList(response.data.future_contests);
-        // Past contests? CodeChef list/all returns `past_contests` but it is usually massive and paginated or separate?
-        // Let's check `past_contests`. Usually API limits it or returns empty if not requested?
-        // The endpoint is `list/contests/all`. It often contains `past_contests` array.
-        // If it's too big, we might want to skip or limit.
-        if (response.data.past_contests && Array.isArray(response.data.past_contests)) {
-             // Limit past contests to known recent ones?
-             // Or slice the array.
-             const recentPast = response.data.past_contests.slice(0, 20); // Just take last 20
-             processList(recentPast);
-        }
 
-        console.log(`Found ${contests.length} CodeChef contests.`);
+
         return contests;
 
     } catch (err) {

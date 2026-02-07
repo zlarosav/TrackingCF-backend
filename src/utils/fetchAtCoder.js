@@ -3,9 +3,8 @@ const cheerio = require('cheerio');
 const { DateTime } = require('luxon');
 
 /**
- * Fetches AtCoder contests from:
- * 1. Official Website (Scraping) -> For Upcoming/Active (Most accurate)
- * 2. Kenkoooo API -> For Past/History
+ * Fetches AtCoder contests from Official Website (Scraping)
+ * Only upcoming and active contests are included.
  */
 const fetchAtCoder = async () => {
     let contests = [];
@@ -14,7 +13,6 @@ const fetchAtCoder = async () => {
 
     // 1. Scrape Official Site (Upcoming & Active)
     try {
-        console.log('Scraping AtCoder Official Site...');
         const response = await axios.get('https://atcoder.jp/contests/', {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' },
             timeout: 10000
@@ -90,57 +88,10 @@ const fetchAtCoder = async () => {
         parseTable('#contest-table-action', 'CODING');
         parseTable('#contest-table-upcoming', 'BEFORE');
         
-        console.log(`Scraped ${contests.length} upcoming/active AtCoder contests.`);
-
     } catch (err) {
         console.error('Error scraping AtCoder:', err.message);
     }
 
-    // 2. Fetch History from Kenkoooo (Fallback & Past)
-    try {
-        console.log('Fetching AtCoder history from Kenkoooo...');
-        const response = await axios.get('https://kenkoooo.com/atcoder/resources/contests.json', {
-            timeout: 10000
-        });
-
-        if (response.data && Array.isArray(response.data)) {
-             console.log(`Kenkoooo returned ${response.data.length} items`);
-             
-             response.data.forEach(c => {
-                 if (seenIds.has(c.id)) return; // Don't overwrite scraped data
-                 
-                 // Filter out "permanent"
-                 if (c.duration_second > 30 * 24 * 3600) return;
-                 
-                  // Relaxed Filter: ID regex OR Title match
-                 const isStandardID = /^(abc|arc|ahc)\d{3}$/i.test(c.id);
-                 const isStandardTitle = /AtCoder (Beginner|Regular|Heuristic) Contest/i.test(c.title);
-                 if (!isStandardID && !isStandardTitle) return;
-
-                 let phase = 'FINISHED';
-                 if (c.start_epoch_second > nowSeconds) phase = 'BEFORE';
-                 else if (c.start_epoch_second <= nowSeconds && nowSeconds < c.start_epoch_second + c.duration_second) phase = 'CODING';
-                 
-                 // Filter to last 1 year for history to avoid bloating DB
-                 const oneYearAgo = nowSeconds - 365 * 24 * 3600;
-                 if (c.start_epoch_second < oneYearAgo && phase === 'FINISHED') return;
-
-                 contests.push({
-                     id: c.id,
-                     name: c.title,
-                     type: 'ATCODER',
-                     phase: phase,
-                     frozen: false,
-                     durationSeconds: c.duration_second,
-                     startTimeSeconds: c.start_epoch_second,
-                     relativeTimeSeconds: c.start_epoch_second - nowSeconds,
-                     platform: 'ATCODER'
-                 });
-             });
-        }
-    } catch (err) {
-        console.error('Error fetching Kenkoooo:', err.message);
-    }
 
     return contests;
 };

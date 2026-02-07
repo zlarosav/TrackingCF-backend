@@ -8,8 +8,6 @@ const { DateTime } = require('luxon');
  */
 const scrapeLeetCode = async () => {
     try {
-        console.log('Fetching LeetCode contests via GraphQL...');
-        
         const response = await axios.post('https://leetcode.com/graphql', {
             query: `
             {
@@ -48,15 +46,16 @@ const scrapeLeetCode = async () => {
             // The list contains "Weekly Contest X".
             
             // Map Phase
-            // If startTime > now -> BEFORE
-            // If startTime <= now < startTime + duration -> CODING
-            // If startTime + duration <= now -> FINISHED
             let phase = 'FINISHED';
             if (c.startTime > nowSeconds) {
                 phase = 'BEFORE';
             } else if (c.startTime <= nowSeconds && nowSeconds < c.startTime + c.duration) {
                 phase = 'CODING';
             }
+
+            // Only include upcoming and active contests
+            if (phase === 'FINISHED') continue;
+
 
             contests.push({
                 id: c.titleSlug,
@@ -71,7 +70,6 @@ const scrapeLeetCode = async () => {
             });
         }
         
-        console.log(`Found ${contests.length} LeetCode contests.`);
         return contests;
         
     } catch (err) {

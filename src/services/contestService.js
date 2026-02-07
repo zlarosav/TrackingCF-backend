@@ -6,7 +6,7 @@ const fetchCodeChef = require('../utils/fetchCodeChef');
 const { DateTime } = require('luxon');
 
 const updateContests = async () => {
-    console.log('Starting contest update...');
+    let totalCount = 0;
 
     // Helper for DB Insert
     const upsertContest = async (contest) => {
@@ -46,18 +46,18 @@ const updateContests = async () => {
         ]);
     };
 
-    // 1. Update Codeforces
+    // 1. Scrape Official Site (Upcoming & Active)
     try {
         const contests = await callCodeforcesApi('contest.list', { gym: false });
         if (contests && Array.isArray(contests)) {
             const upcomingContests = contests.filter(c => c.phase === 'BEFORE');
-            console.log(`Found ${upcomingContests.length} upcoming Codeforces contests.`);
             for (const contest of upcomingContests) {
                 await upsertContest({
                     ...contest,
                     platform: 'CODEFORCES'
                 });
             }
+            totalCount += upcomingContests.length;
         }
     } catch (error) {
         console.error('Error updating Codeforces contests:', error.message);
@@ -70,6 +70,7 @@ const updateContests = async () => {
             for (const contest of leetCodeContests) {
                 await upsertContest(contest);
             }
+            totalCount += leetCodeContests.length;
         }
     } catch (error) {
         console.error('Error updating LeetCode contests:', error.message);
@@ -78,7 +79,6 @@ const updateContests = async () => {
     // 3. Update AtCoder
     try {
         const atCoderContests = await fetchAtCoder();
-        console.log(`Service received ${atCoderContests.length} AtCoder contests.`);
         if (atCoderContests && atCoderContests.length > 0) {
             for (const contest of atCoderContests) {
                 try {
@@ -87,6 +87,7 @@ const updateContests = async () => {
                    console.error(`Failed to insert AtCoder contest ${contest.id}:`, innerErr.message);
                 }
             }
+            totalCount += atCoderContests.length;
         }
     } catch (error) {
         console.error('Error updating AtCoder contests:', error.message);
@@ -99,6 +100,7 @@ const updateContests = async () => {
             for (const contest of codeChefContests) {
                 await upsertContest(contest);
             }
+            totalCount += codeChefContests.length;
         }
     } catch (error) {
         console.error('Error updating CodeChef contests:', error.message);
@@ -115,7 +117,7 @@ const updateContests = async () => {
         console.error('Error updating metadata:', error.message);
     }
 
-    console.log('Contests update finished.');
+    console.log(`✅ Updated ${totalCount} upcoming/active contests from all platforms`);
 };
 
 const getUpcomingContests = async () => {

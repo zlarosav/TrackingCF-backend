@@ -74,17 +74,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-const { updateContests } = require('./services/contestService');
-
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌍 Timezone: ${process.env.TZ || 'UTC'}`);
-  
-  // Ejecutar actualización de contests al iniciar
-  console.log('🔄 Iniciando carga inicial de contests...');
-  updateContests();
 });
 
 module.exports = app;

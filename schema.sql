@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     `rank` VARCHAR(50) NULL,
     last_submission_time TIMESTAMP NULL,
     current_streak INT DEFAULT 0,
-    last_streak_date DATE NULL,
+    last_streak_date VARCHAR(10) NULL COMMENT 'YYYY-MM-DD format in local timezone',
     enabled BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
