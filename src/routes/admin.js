@@ -270,6 +270,47 @@ router.delete('/users/:handle', async (req, res) => {
   }
 });
 
+// Get Audit Summary (Grouped by IP)
+router.get('/audit-summary', async (req, res) => {
+  try {
+      const query = `
+          SELECT 
+              l.ip_address,
+              MAX(l.timestamp) as last_active,
+              COUNT(*) as total_requests,
+              GROUP_CONCAT(DISTINCT a.username SEPARATOR ', ') as admin_usernames,
+              JSON_ARRAYAGG(l.action) as recent_actions -- Just a sample
+          FROM audit_logs l
+          LEFT JOIN admins a ON l.admin_id = a.id
+          GROUP BY l.ip_address
+          ORDER BY last_active DESC
+      `;
+      
+      const [rows] = await db.query(query);
+      
+      // Process rows to create a action summary locally if SQL is too complex for simple JSON_OBJECT
+      const processed = rows.map(row => {
+          // Count actions 
+          // Note: JSON_ARRAYAGG might be huge, let's optimize SQL if needed. 
+          // Actually let's just do a simpler summary in JS for now or limit the agg.
+          // For now, let's not aggregate ALL actions, maybe just unique ones is better in SQL:
+          // GROUP_CONCAT(DISTINCT l.action)
+          return {
+              ip: row.ip_address,
+              lastActive: row.last_active,
+              totalRequests: row.total_requests,
+              admins: row.admin_usernames ? row.admin_usernames.split(', ') : [],
+              // We'll fetch details on expand
+          };
+      });
+
+      res.json({ success: true, data: processed });
+  } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, error: 'Error al obtener resumen de auditoría' });
+  }
+});
+
 // Get Audit Logs
 router.get('/audit-logs', async (req, res) => {
   try {
