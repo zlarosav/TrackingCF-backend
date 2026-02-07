@@ -13,6 +13,7 @@
     "user:rename": "node src/scripts/renameUser.js",
     "user:toggle": "node src/scripts/toggleUser.js",
     "admin:create": "node src/scripts/createAdmin.js",
+    "admin:delete": "node src/scripts/deleteAdmin.js",
     "tracker:run": "node src/scripts/runTracker.js",
     "tracker:force": "node src/scripts/runTracker.js --force",
     "contests:update": "node src/scripts/updateContests.js"
