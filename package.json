@@ -12,6 +12,7 @@
     "user:delete": "node src/scripts/deleteUser.js",
     "user:rename": "node src/scripts/renameUser.js",
     "user:toggle": "node src/scripts/toggleUser.js",
+    "admin:create": "node src/scripts/createAdmin.js",
     "tracker:run": "node src/scripts/runTracker.js",
     "tracker:force": "node src/scripts/runTracker.js --force",
     "contests:update": "node src/scripts/updateContests.js"
@@ -25,10 +26,12 @@
   "license": "MIT",
   "dependencies": {
     "axios": "^1.7.7",
+    "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.3",
     "luxon": "^3.5.0",
     "mysql2": "^3.11.0",
     "node-cron": "^3.0.3"

@@ -1,4 +1,4 @@
-const { updateContests } = require('./services/contestService');
+const { updateContests } = require('../services/contestService');
 
 async function runContests() {
   try {

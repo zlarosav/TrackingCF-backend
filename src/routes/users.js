@@ -66,7 +66,7 @@ router.get('/', async (req, res) => {
         ) as total_score
       FROM users u
       LEFT JOIN submissions s ON u.id = s.user_id
-      WHERE u.enabled = TRUE ${dateFilter ? `AND ${dateFilter.substring(4)}` : ''}
+      WHERE u.enabled = TRUE AND u.is_hidden = FALSE ${dateFilter ? `AND ${dateFilter.substring(4)}` : ''}
       GROUP BY u.id, u.handle, u.avatar_url, u.rating, u.\`rank\`, u.last_updated, u.current_streak, u.last_streak_date
       ORDER BY total_score DESC, u.handle ASC
     `;
@@ -139,8 +139,8 @@ router.get('/:handle', async (req, res) => {
       });
     }
 
-    // Check if user is disabled
-    if (!user.enabled) {
+    // Check if user is disabled or hidden
+    if (!user.enabled || user.is_hidden) {
       return res.status(404).json({
         success: false,
         error: 'Usuario no disponible'

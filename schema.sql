@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     current_streak INT DEFAULT 0,
     last_streak_date VARCHAR(10) NULL COMMENT 'YYYY-MM-DD format in local timezone',
     enabled BOOLEAN DEFAULT TRUE,
+    is_hidden BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_handle (handle),
@@ -73,3 +74,37 @@ CREATE TABLE IF NOT EXISTS system_metadata (
     value VARCHAR(255),
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla de administradores
+CREATE TABLE IF NOT EXISTS admins (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- Tabla de logs de auditoría
+-- Tabla de logs de auditoría
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    admin_id INT NULL, -- ID del administrador que realizó la acción
+    action VARCHAR(50) NOT NULL, -- LOGIN, CREATE_USER, DELETE_USER, ETC
+    details JSON NULL, -- Detalles adicionales (handle afectado, cambios, etc)
+    ip_address VARCHAR(45) NOT NULL,
+    user_agent VARCHAR(500),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla de notificaciones
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    type VARCHAR(50) NOT NULL, -- CONTEST, RANK_UP, SYSTEM
+    message TEXT NOT NULL,
+    related_id VARCHAR(100) NULL, -- ContestID, Handle, etc.
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NULL,
+    INDEX idx_created_at (created_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

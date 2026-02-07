@@ -69,6 +69,14 @@ class User {
     return result.affectedRows > 0;
   }
 
+  static async rename(oldHandle, newHandle) {
+    const [result] = await db.query(
+      'UPDATE users SET handle = ? WHERE handle = ?',
+      [newHandle, oldHandle]
+    );
+    return result.affectedRows > 0;
+  }
+
   static async updateLastUpdated(id) {
     await db.query(
       'UPDATE users SET last_updated = CURRENT_TIMESTAMP WHERE id = ?',

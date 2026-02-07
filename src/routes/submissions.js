@@ -51,12 +51,13 @@ router.get('/', async (req, res) => {
         u.avatar_url
       FROM submissions s
       JOIN users u ON s.user_id = u.id
+      WHERE u.enabled = TRUE AND u.is_hidden = FALSE
     `;
 
     const params = [];
     
     if (dateFrom) {
-      query += ` WHERE s.submission_time >= ?`;
+      query += ` AND s.submission_time >= ?`;
       params.push(dateFrom);
     }
 

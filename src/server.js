@@ -44,9 +44,20 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/users', require('./middleware/audit'), usersRouter); // Audit public user requests? Or all? User requested audit (no login).
+// Re-reading request: "Trackeo de IPs y auditoría de sesiones de usuarios (sin login de usuarios, por eso por IP)."
+// This means we should probably audit ALL traffic or key endpoints.
+// Let's audit everything for now, or at least the API routes.
+
+// Global Audit Middleware (applied to all /api routes)
+const auditMiddleware = require('./middleware/audit');
+app.use('/api', auditMiddleware);
+
 app.use('/api/users', usersRouter);
 app.use('/api/submissions', submissionsRouter);
 app.use('/api/contests', contestsRouter);
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Health check
 app.get('/api/health', (req, res) => {

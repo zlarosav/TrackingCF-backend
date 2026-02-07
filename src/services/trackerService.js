@@ -78,6 +78,21 @@ async function trackUser(handle) {
         rank: userInfo.rank || null,
         lastSubmissionTime: user.last_submission_time
       });
+
+      // Detect Rank Change
+      if (user.rank && userInfo.rank && user.rank !== userInfo.rank) {
+          const { createNotification } = require('./notificationService');
+          if (userInfo.rating > user.rating) {
+               // Rank UP? Or just change. "Specialist" to "Expert" logic needed?
+               // Codeforces ranks: Newbie, Pupil, Specialist, Expert, Candidate Master, Master...
+               // Just notify change for now, usually people care about upgrades.
+               await createNotification(
+                   'RANK_UP',
+                   `🚀 ${handle} ha alcanzado un nuevo rango: ${userInfo.rank}!`,
+                   handle
+               );
+          }
+      }
     } catch (err) {
       // Detectar si el handle ya no existe en Codeforces
       if (err.response?.status === 404 || 
