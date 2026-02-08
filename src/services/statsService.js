@@ -226,9 +226,47 @@ async function getUserDetailedStats(userId) {
   }
 }
 
+/**
+ * Obtiene estadísticas globales de la plataforma para el contexto del Chatbot
+ */
+async function getPlatformStats() {
+  try {
+    // Top 5 Usuarios por Rating
+    // Top Usuarios por Rating (Traemos TODOS para contexto completo si son < 50)
+    const [allUsers] = await db.query(`
+      SELECT u.handle, u.rating, u.rank, us.total_score, us.count_1200_plus
+      FROM users u
+      LEFT JOIN user_stats us ON u.id = us.user_id
+      WHERE u.rating IS NOT NULL 
+      ORDER BY u.rating DESC
+    `);
+
+    // Total de usuarios y submissions
+    const [counts] = await db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM users) as total_users,
+        (SELECT COUNT(*) FROM submissions) as total_submissions
+    `);
+    
+    // Promedio de rating
+    const [avgRating] = await db.query(`SELECT AVG(rating) as avg_rating FROM users WHERE rating > 0`);
+
+    return {
+      allUsers,
+      totalUsers: counts[0].total_users,
+      totalSubmissions: counts[0].total_submissions,
+      avgRating: Math.round(avgRating[0].avg_rating || 0)
+    };
+  } catch (err) {
+    console.error('Error getting platform stats:', err);
+    return null;
+  }
+}
+
 module.exports = {
   calculateScore,
   getRatingCategory,
   calculateUserStats,
-  getUserDetailedStats
+  getUserDetailedStats,
+  getPlatformStats
 };

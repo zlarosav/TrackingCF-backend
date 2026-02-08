@@ -3,7 +3,7 @@ const db = require('../config/database');
 /**
  * Crea una nueva notificación en la base de datos
  */
-async function createNotification(type, message, relatedId = null, expireHours = 24) {
+async function createNotification(type, message, relatedId = null, link = null, expireHours = 24) {
   try {
     const expiresAt = new Date(Date.now() + expireHours * 60 * 60 * 1000);
     
@@ -19,10 +19,10 @@ async function createNotification(type, message, relatedId = null, expireHours =
     }
 
     await db.query(
-      `INSERT INTO notifications (type, message, related_id, expires_at) VALUES (?, ?, ?, ?)`,
-      [type, message, relatedId, expiresAt]
+      `INSERT INTO notifications (type, message, related_id, link, expires_at) VALUES (?, ?, ?, ?, ?)`,
+      [type, message, relatedId, link, expiresAt]
     );
-    console.log(`📢 Notificación creada: [${type}] ${message}`);
+    console.log(`📢 Notificación creada: [${type}] ${message} ${link ? `(Link: ${link})` : ''}`);
   } catch (err) {
     console.error('Error creating notification:', err.message);
   }
