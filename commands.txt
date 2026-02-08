@@ -1,0 +1,13 @@
+npm run db:delete
+
+npm run db:init
+npm run user:create batipibe
+npm run user:create zlarosav
+npm run user:create zxpty
+npm run user:create Aldo1919xd
+npm run user:create Sythk.c
+npm run user:create SrCarter
+npm run user:create Alonso_Hurtado
+npm run contests:update
+npm run admin:create
+npm run dev
