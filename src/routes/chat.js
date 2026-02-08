@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const chatService = require('../services/chatService');
+const { logAction } = require('../services/auditService');
 
 
 // Simple ID generator
@@ -17,8 +18,25 @@ router.post('/message', async (req, res) => {
 
     const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     
+    // Log the attempt/query (before or after processing? After success is usually better for "completed actions", 
+    // but for audit we might want to know they asked. Let's log successful processing for now)
+    
     const response = await chatService.processMessage(sessionId, handle, message, clientIp);
     
+    // Audit Log: User Chat Query
+    // We log as adminId: null (system/user action)
+    await logAction({ 
+        adminId: null, 
+        action: 'CHAT_QUERY', 
+        details: { 
+            handle, 
+            sessionId, 
+            message: message.length > 200 ? message.substring(0, 200) + '...' : message 
+        }, 
+        ip: clientIp, 
+        userAgent: req.get('User-Agent') 
+    });
+
     res.json({ success: true, response });
   } catch (error) {
     console.error('Chat Error:', error);

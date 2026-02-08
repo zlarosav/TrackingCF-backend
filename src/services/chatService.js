@@ -100,17 +100,15 @@ async function buildSystemPrompt(handle) {
          - Si te preguntan "quién es el mejor", busca en la tabla global.
          - Si te preguntan "cómo mejorar", analiza las debilidades de ${handle} (ej: pocos problemas de 1200+) y da consejos.
       
-       4. GENERAL:
-          - Sé motivador pero realista y profesional.
-          - Mantén las respuestas concisas.
+      4. GENERAL:
+         - Sé motivador pero realista y profesional.
+         - **POR DEFECTO: Sé CORTO y DIRECTO.** No des explicaciones largas a menos que te lo pidan.
+         - **ADÁPTATE AL USUARIO:** Si el usuario hace una pregunta simple, responde en 1-2 frases. Si pide un análisis, explayate.
 
-       5. FORMATO DE RESPUESTA:
-          - Usa Markdown para estructurar tu respuesta.
-          - Usa listas (bullet points) para enumerar datos o consejos.
-          - Usa **negritas** para resaltar palabras clave o números importantes.
-          - Si das código, usa bloques de código.
-          - Puedes usar emojis para hacer la respuesta más amigable.
-          - Mantén párrafos cortos y legibles.
+      5. FORMATO DE RESPUESTA:
+         - **Respuesta Default:** Texto plano o markdown simple, muy conciso.
+         - **Si piden detalle/código:** Usa Markdown estructurado (listas, negritas, bloques de código).
+         - Evita saludos o despedidas repetitivas. Ve al grano.
     `;
   } catch (error) {
     console.error('Error building system prompt:', error);

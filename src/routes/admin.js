@@ -273,20 +273,33 @@ router.delete('/users/:handle', async (req, res) => {
 // Get Audit Summary (Grouped by IP)
 router.get('/audit-summary', async (req, res) => {
   try {
-      const query = `
+      console.log('DEBUG: GET /audit-summary', req.query);
+      const { action } = req.query;
+      
+      let query = `
           SELECT 
               l.ip_address,
               MAX(l.timestamp) as last_active,
               COUNT(*) as total_requests,
-              GROUP_CONCAT(DISTINCT a.username SEPARATOR ', ') as admin_usernames,
-              JSON_ARRAYAGG(l.action) as recent_actions -- Just a sample
+              GROUP_CONCAT(DISTINCT a.username SEPARATOR ', ') as admin_usernames
           FROM audit_logs l
           LEFT JOIN admins a ON l.admin_id = a.id
+          WHERE 1=1
+      `;
+      
+      const params = [];
+      
+      if (action) {
+          query += ` AND l.action = ?`;
+          params.push(action);
+      }
+      
+      query += `
           GROUP BY l.ip_address
           ORDER BY last_active DESC
       `;
       
-      const [rows] = await db.query(query);
+      const [rows] = await db.query(query, params);
       
       // Process rows to create a action summary locally if SQL is too complex for simple JSON_OBJECT
       const processed = rows.map(row => {
@@ -314,6 +327,7 @@ router.get('/audit-summary', async (req, res) => {
 // Get Audit Logs
 router.get('/audit-logs', async (req, res) => {
   try {
+    console.log('DEBUG: GET /audit-logs', req.query);
     const page = parseInt(req.query.page) || 1;
     // Force restart comment
     const limit = 50;
