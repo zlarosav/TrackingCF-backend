@@ -134,6 +134,21 @@ class User {
   }
 
   /**
+   * Actualiza el historial de rating del usuario
+   * @param {number} userId - ID del usuario
+   * @param {Array} history - Array de objetos de historia de rating
+   */
+  static async updateRatingHistory(userId, history) {
+    const query = `
+      UPDATE users 
+      SET rating_history = ? 
+      WHERE id = ?
+    `;
+    // MySQL 8.0 support JSON directly
+    await db.query(query, [JSON.stringify(history), userId]);
+  }
+
+  /**
    * Calculates valid streak based on submission history
    * Handles timezones and strict day consecutive logic using Luxon
    * @param {number} userId 

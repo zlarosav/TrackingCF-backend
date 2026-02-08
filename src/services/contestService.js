@@ -46,18 +46,30 @@ const updateContests = async () => {
         ]);
     };
 
-    // 1. Scrape Official Site (Upcoming & Active)
+    // 1. Scrape Official Site (Upcoming & Active & Finished)
     try {
         const contests = await callCodeforcesApi('contest.list', { gym: false });
         if (contests && Array.isArray(contests)) {
-            const upcomingContests = contests.filter(c => c.phase === 'BEFORE');
-            for (const contest of upcomingContests) {
-                await upsertContest({
+            // Sync ALL contests to ensure we have IDs and Names for history mapping
+            // Batch upsert could be optimized, but sequential loop with parallel DB might overload.
+            // Let's use a transaction or batch insert if possible, but existing code uses upsertContest loop.
+            // To avoid 2000 queries every time, maybe we only update those that changed?
+            // "finished" contests rarely change. 
+            // Better: Filter for contests that are 'BEFORE', 'CODING', or changed recently?
+            // User wants "new" contests.
+            // Let's update ALL for now, but to avoid spamming DB, maybe we check if it exists?
+            // Actually, the user's main concern is *missing* contests.
+            
+            // Let's reverse the list (ID desc) and take the first ~500? Or just all.
+            // 2000 simple INSERT/UPDATE is negligible for a nightly job.
+            
+            for (const contest of contests) {
+                 await upsertContest({
                     ...contest,
                     platform: 'CODEFORCES'
                 });
             }
-            totalCount += upcomingContests.length;
+            totalCount += contests.length;
         }
     } catch (error) {
         console.error('Error updating Codeforces contests:', error.message);

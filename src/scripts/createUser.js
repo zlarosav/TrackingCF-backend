@@ -1,6 +1,5 @@
-require('dotenv').config();
 const User = require('../models/User');
-const { getUserInfo } = require('../services/codeforcesService');
+const { getUserInfo, getEnrichedRatingHistory } = require('../services/codeforcesService');
 const db = require('../config/database');
 
 async function createUser() {
@@ -11,8 +10,14 @@ async function createUser() {
       console.error('❌ Error: Debes proporcionar un handle');
       console.log('Uso: npm run user:create <handle>');
       console.log('Ejemplo: npm run user:create zlarosav');
+      console.log('Ejemplo: npm run user:create zlarosav');
       process.exit(1);
     }
+
+    // Actualizar metadata de contests antes de procesar usuario
+    // REVERTIDO: El usuario pidió que contests globales sea solo por cron a las 3AM.
+    // console.log('🔄 Actualizando lista de contests...');
+    // await updateContests();
 
     console.log(`🔍 Verificando usuario en Codeforces: ${handle}`);
 
@@ -64,6 +69,16 @@ async function createUser() {
       }
     } else {
       console.log(`⚠️  No se encontró avatar para este usuario`);
+    }
+
+    // Obtener e insertar historial de ratings en cache DB
+    console.log(`📊 Obteniendo historial de contests detallado...`);
+    try {
+        const history = await getEnrichedRatingHistory(handle);
+        await User.updateRatingHistory(userId, history);
+        console.log(`✅ Historial de contests guardado (${history.length} eventos)`);
+    } catch (histErr) {
+        console.error(`⚠️  No se pudo obtener historial de ratings: ${histErr.message}`);
     }
 
     // Crear entrada en user_stats

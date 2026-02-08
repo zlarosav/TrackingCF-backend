@@ -13,7 +13,8 @@ const authMiddleware = require('../middleware/auth');
 const User = require('../models/User'); 
 const { logAction } = require('../services/auditService');
 const { trackUser } = require('../services/trackerService');
-const { getUserInfo } = require('../services/codeforcesService');
+const { getUserInfo, getEnrichedRatingHistory } = require('../services/codeforcesService');
+// const { updateContests } = require('../services/contestService'); // REVERTIDO
 
 // Login
 router.post('/login', async (req, res) => {
@@ -64,6 +65,10 @@ router.post('/users', async (req, res) => {
   if (!handle) return res.status(400).json({ success: false, error: 'Handle requerido' });
 
   try {
+    // 0. Update contests data to ensure freshness 
+    // REVERTIDO: Solo user history se actualiza aquí.
+    // await updateContests();
+
     // 1. Check if exists in DB
     const existing = await User.findByHandle(handle);
     if (existing) {
@@ -92,8 +97,17 @@ router.post('/users', async (req, res) => {
         lastSubmissionTime: null
     });
 
+
     // 5. Initialize Stats
     await db.query(`INSERT INTO user_stats (user_id) VALUES (?)`, [userId]);
+
+    // 5.5 Cache Rating History
+    try {
+        const history = await getEnrichedRatingHistory(handle);
+        await User.updateRatingHistory(userId, history);
+    } catch (e) {
+        console.error(`Error saving rating history for ${handle}:`, e.message);
+    }
 
     // 6. Track User
     const trackResult = await trackUser(handle);

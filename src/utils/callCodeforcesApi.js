@@ -48,16 +48,34 @@ const callCodeforcesApi = async (methodName, params = {}) => {
 
   const url = `https://codeforces.com/api/${methodName}?${sortedParams}&apiSig=${apiSig}`;
 
-  try {
-    const res = await axios.get(url);
-    if (res.data.status === 'OK') {
-      return res.data.result;
-    } else {
-      throw new Error(res.data.comment);
-    }
-  } catch (err) {
-    console.error(`Error codeforces API (${methodName}):`, err.message);
-    throw err; 
+  const MAX_RETRIES = 3;
+  let attempt = 0;
+
+  while (attempt < MAX_RETRIES) {
+      try {
+          const res = await axios.get(url, { timeout: 15000 }); // 15s timeout
+          if (res.data.status === 'OK') {
+              return res.data.result;
+          } else {
+              throw new Error(res.data.comment || 'Codeforces API Error');
+          }
+      } catch (err) {
+          attempt++;
+          const isTimeout = err.code === 'ECONNABORTED';
+          const isRateLimit = err.response?.status === 429;
+          
+          if (attempt >= MAX_RETRIES) {
+               console.error(`❌ CF API Failed [${methodName}] after ${MAX_RETRIES} attempts: ${err.message}`);
+               throw err;
+          }
+
+          // Backoff
+          const delay = isRateLimit ? 1000 * attempt : 500;
+          if (isTimeout) console.warn(`⚠️ Timeout [${methodName}], retrying (${attempt}/${MAX_RETRIES})...`);
+          else console.warn(`⚠️ Error [${methodName}], retrying in ${delay}ms...`);
+          
+          await new Promise(r => setTimeout(r, delay));
+      }
   }
 };
 

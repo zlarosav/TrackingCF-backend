@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_submission_time TIMESTAMP NULL,
     current_streak INT DEFAULT 0,
     last_streak_date VARCHAR(10) NULL COMMENT 'YYYY-MM-DD format in local timezone',
+    rating_history JSON NULL COMMENT 'Cached Codeforces rating history',
     enabled BOOLEAN DEFAULT TRUE,
     is_hidden BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS contests (
     durationSeconds INT,
     startTimeSeconds INT,
     relativeTimeSeconds INT,
+    problems JSON NULL,
     platform VARCHAR(50) DEFAULT 'CODEFORCES',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

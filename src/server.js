@@ -6,7 +6,8 @@ const submissionsRouter = require('./routes/submissions');
 const contestsRouter = require('./routes/contests');
 require('./jobs/cronTracker'); // Iniciar cron job de tracking
 require('./jobs/cronStreakReset'); // Iniciar cron job de reset de rachas
-require('./jobs/cronContests'); // Iniciar cron job de contests
+require('./jobs/cronContests'); // Iniciar cron job de contests globales
+require('./jobs/cronUserRatings'); // Iniciar cron job de user ratings
 
 const app = express();
 const PORT = process.env.PORT || 3001;

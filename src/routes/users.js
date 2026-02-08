@@ -158,8 +158,32 @@ router.get('/:handle', async (req, res) => {
     console.error('Error en GET /api/users/:handle:', err.message);
     res.status(500).json({
       success: false,
-      error: 'Error al obtener usuario'
     });
+  }
+});
+
+/**
+ * GET /api/users/:handle/rating-history
+ * Obtiene el historial de contests del usuario
+ */
+router.get('/:handle/rating-history', async (req, res) => {
+  try {
+    const { handle } = req.params;
+    const { getUserRatingHistory } = require('../services/codeforcesService');
+    
+    // Validar existencia primero y obtener historial cached
+    const [rows] = await require('../config/database').query('SELECT rating_history FROM users WHERE handle = ?', [handle]);
+    
+    if (rows.length === 0) {
+       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+    
+    const history = rows[0].rating_history || [];
+    
+    res.json({ success: true, data: history });
+  } catch (err) {
+    console.error(`Error en GET /api/users/${req.params.handle}/rating-history:`, err.message);
+    res.status(500).json({ success: false, error: 'Error obteniendo historial de rating' });
   }
 });
 
