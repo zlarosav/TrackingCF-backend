@@ -43,7 +43,7 @@ Copia el archivo `.env.example` y renómbralo a `.env`:
 cp .env.example .env
 ```
 
-Edita el archivo `.env` con tus configuraciones:
+Edita el archivo `.env` con tus configuraciones.:
 
 ```env
 PORT=3001
