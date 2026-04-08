@@ -8,7 +8,12 @@ class Submission {
       `INSERT INTO submissions 
        (user_id, platform, contest_id, problem_index, problem_name, rating, tags, submission_time)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE id=id`,
+       ON DUPLICATE KEY UPDATE
+         platform = VALUES(platform),
+         problem_name = VALUES(problem_name),
+         rating = VALUES(rating),
+         tags = VALUES(tags),
+         submission_time = GREATEST(submission_time, VALUES(submission_time))`,
       [userId, platform, contestId, problemIndex, problemName, rating, JSON.stringify(tags), submissionTime]
     );
     
@@ -36,7 +41,12 @@ class Submission {
       `INSERT INTO submissions 
        (user_id, platform, contest_id, problem_index, problem_name, rating, tags, submission_time)
        VALUES ${placeholders}
-       ON DUPLICATE KEY UPDATE id=id`,
+       ON DUPLICATE KEY UPDATE
+         platform = VALUES(platform),
+         problem_name = VALUES(problem_name),
+         rating = VALUES(rating),
+         tags = VALUES(tags),
+         submission_time = GREATEST(submission_time, VALUES(submission_time))`,
       flatValues
     );
 

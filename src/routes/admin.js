@@ -60,12 +60,12 @@ router.use(authMiddleware);
 router.get('/feature-flags', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT key_name, value FROM system_metadata WHERE key_name = ?', [FEATURE_ATCODER_SUBMISSIONS]);
-    const row = rows.find((r) => r.key_name === FEATURE_ATCODER_SUBMISSIONS);
+    const atcoderRow = rows.find((r) => r.key_name === FEATURE_ATCODER_SUBMISSIONS);
 
     res.json({
       success: true,
       data: {
-        atcoderSubmissions: parseFlagValue(row?.value, false)
+        atcoderSubmissions: parseFlagValue(atcoderRow?.value, false)
       }
     });
   } catch (err) {
