@@ -2,8 +2,26 @@ const express = require('express');
 const User = require('../models/User');
 const Submission = require('../models/Submission');
 const { getUserDetailedStats } = require('../services/statsService');
+const db = require('../config/database');
 
 const router = express.Router();
+const FEATURE_ATCODER_SUBMISSIONS = 'feature_atcoder_submissions';
+
+async function isAtcoderSubmissionsEnabled() {
+  try {
+    const [rows] = await db.query(
+      'SELECT value FROM system_metadata WHERE key_name = ? LIMIT 1',
+      [FEATURE_ATCODER_SUBMISSIONS]
+    );
+
+    if (!rows.length) return false;
+    const value = String(rows[0].value || '').trim().toLowerCase();
+    return value === '1' || value === 'true' || value === 'on' || value === 'enabled';
+  } catch (err) {
+    console.error('Error leyendo feature flag atcoder submissions:', err.message);
+    return false;
+  }
+}
 
 /**
  * GET /api/submissions
@@ -36,11 +54,10 @@ router.get('/', async (req, res) => {
         dateFrom = null;
     }
 
-    const db = require('../config/database');
-    
     let query = `
       SELECT 
         s.id,
+        s.platform,
         s.contest_id,
         s.problem_index,
         s.problem_name,
@@ -55,6 +72,11 @@ router.get('/', async (req, res) => {
     `;
 
     const params = [];
+
+    const atcoderEnabled = await isAtcoderSubmissionsEnabled();
+    if (!atcoderEnabled) {
+      query += ` AND s.platform = 'CODEFORCES'`;
+    }
     
     if (dateFrom) {
       query += ` AND s.submission_time >= ?`;
@@ -92,7 +114,10 @@ router.get('/', async (req, res) => {
       data: {
         submissions,
         period,
-        total: rows.length
+        total: rows.length,
+        flags: {
+          atcoderSubmissions: atcoderEnabled
+        }
       }
     });
 

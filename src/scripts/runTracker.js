@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const { trackAllUsers, trackUser } = require('../services/trackerService');
 
 async function runTracker() {

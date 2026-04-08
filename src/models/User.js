@@ -53,12 +53,32 @@ class User {
     return rows[0];
   }
 
-  static async create(handle) {
+  static async create(handle, platformHandles = {}) {
     const [result] = await db.query(
-      'INSERT INTO users (handle) VALUES (?)',
-      [handle]
+      `INSERT INTO users (handle, leetcode_handle, atcoder_handle, codechef_handle)
+       VALUES (?, ?, ?, ?)`,
+      [
+        handle,
+        platformHandles.leetcodeHandle || null,
+        platformHandles.atcoderHandle || null,
+        platformHandles.codechefHandle || null
+      ]
     );
     return result.insertId;
+  }
+
+  static async updatePlatformHandles(id, platformHandles = {}) {
+    await db.query(
+      `UPDATE users
+       SET leetcode_handle = ?, atcoder_handle = ?, codechef_handle = ?
+       WHERE id = ?`,
+      [
+        platformHandles.leetcodeHandle || null,
+        platformHandles.atcoderHandle || null,
+        platformHandles.codechefHandle || null,
+        id
+      ]
+    );
   }
 
   static async delete(handle) {

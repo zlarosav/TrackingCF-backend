@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const db = require('../config/database');
 const codeforcesService = require('../services/codeforcesService');
 const readline = require('readline');
