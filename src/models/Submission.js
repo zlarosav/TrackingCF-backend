@@ -2,14 +2,19 @@ const db = require('../config/database');
 
 class Submission {
   static async create(userId, submission) {
-    const { contestId, problemIndex, problemName, rating, tags, submissionTime } = submission;
+    const { contestId, problemIndex, problemName, rating, tags, submissionTime, platform = 'CODEFORCES' } = submission;
     
     const [result] = await db.query(
       `INSERT INTO submissions 
-       (user_id, contest_id, problem_index, problem_name, rating, tags, submission_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE id=id`,
-      [userId, contestId, problemIndex, problemName, rating, JSON.stringify(tags), submissionTime]
+       (user_id, platform, contest_id, problem_index, problem_name, rating, tags, submission_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         platform = VALUES(platform),
+         problem_name = VALUES(problem_name),
+         rating = VALUES(rating),
+         tags = VALUES(tags),
+         submission_time = GREATEST(submission_time, VALUES(submission_time))`,
+      [userId, platform, contestId, problemIndex, problemName, rating, JSON.stringify(tags), submissionTime]
     );
     
     return result.insertId || result.affectedRows;
@@ -20,6 +25,7 @@ class Submission {
 
     const values = submissions.map(sub => [
       userId,
+      sub.platform || 'CODEFORCES',
       sub.contestId,
       sub.problemIndex,
       sub.problemName,
@@ -28,14 +34,19 @@ class Submission {
       sub.submissionTime
     ]);
 
-    const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ');
+    const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
     const flatValues = values.flat();
 
     const [result] = await db.query(
       `INSERT INTO submissions 
-       (user_id, contest_id, problem_index, problem_name, rating, tags, submission_time)
+       (user_id, platform, contest_id, problem_index, problem_name, rating, tags, submission_time)
        VALUES ${placeholders}
-       ON DUPLICATE KEY UPDATE id=id`,
+       ON DUPLICATE KEY UPDATE
+         platform = VALUES(platform),
+         problem_name = VALUES(problem_name),
+         rating = VALUES(rating),
+         tags = VALUES(tags),
+         submission_time = GREATEST(submission_time, VALUES(submission_time))`,
       flatValues
     );
 
@@ -191,6 +202,17 @@ class Submission {
       [userId, contestId, problemIndex]
     );
     return rows.length > 0;
+  }
+
+  static async getLastSubmissionTimeByPlatform(userId, platform) {
+    const [rows] = await db.query(
+      `SELECT MAX(submission_time) AS last_submission_time
+       FROM submissions
+       WHERE user_id = ? AND platform = ?`,
+      [userId, platform]
+    );
+
+    return rows[0]?.last_submission_time || null;
   }
 }
 

@@ -8,6 +8,9 @@ USE tracking_cf;
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     handle VARCHAR(100) NOT NULL UNIQUE,
+    leetcode_handle VARCHAR(100) NULL,
+    atcoder_handle VARCHAR(100) NULL,
+    codechef_handle VARCHAR(100) NULL,
     avatar_url VARCHAR(500) NULL,
     rating INT NULL,
     `rank` VARCHAR(50) NULL,
@@ -27,7 +30,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS submissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
-    contest_id INT NOT NULL,
+    platform VARCHAR(50) NOT NULL DEFAULT 'CODEFORCES',
+    contest_id VARCHAR(50) NOT NULL,
     problem_index VARCHAR(10) NOT NULL,
     problem_name VARCHAR(255) NOT NULL,
     rating INT NULL,
@@ -37,6 +41,7 @@ CREATE TABLE IF NOT EXISTS submissions (
     UNIQUE KEY unique_submission (user_id, contest_id, problem_index),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_user_time (user_id, submission_time DESC),
+    INDEX idx_platform_contest (platform, contest_id),
     INDEX idx_user_rating (user_id, rating),
     INDEX idx_submission_time (submission_time DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

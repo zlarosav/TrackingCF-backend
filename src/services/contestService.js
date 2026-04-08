@@ -4,6 +4,7 @@ const scrapeLeetCode = require('../utils/scrapeLeetCode');
 const fetchAtCoder = require('../utils/fetchAtCoder');
 const fetchCodeChef = require('../utils/fetchCodeChef');
 const { DateTime } = require('luxon');
+const User = require('../models/User');
 
 const updateContests = async () => {
     let totalCount = 0;
@@ -154,7 +155,34 @@ const getUpcomingContests = async () => {
     }
 };
 
+    const getContestParticipants = async (contestId, platform) => {
+        const [rows] = await db.query(
+            `SELECT DISTINCT
+                u.id,
+                u.handle,
+                u.avatar_url,
+                u.rating,
+                u.rank,
+                u.current_streak,
+                u.last_streak_date
+             FROM submissions s
+             INNER JOIN users u ON u.id = s.user_id
+             WHERE s.contest_id = ?
+               AND s.platform = ?
+               AND u.enabled = TRUE
+               AND u.is_hidden = FALSE
+             ORDER BY u.rating DESC, u.handle ASC`,
+            [contestId, platform]
+        );
+
+        return rows.map(row => ({
+            ...User.formatUser(row),
+            streak_active: User.isStreakActive(row.last_streak_date, row.current_streak)
+        }));
+    };
+
 module.exports = {
     updateContests,
-    getUpcomingContests
+        getUpcomingContests,
+        getContestParticipants
 };

@@ -16,6 +16,15 @@ const { trackUser } = require('../services/trackerService');
 const { getUserInfo, getEnrichedRatingHistory } = require('../services/codeforcesService');
 // const { updateContests } = require('../services/contestService'); // REVERTIDO
 
+const FEATURE_ATCODER_SUBMISSIONS = 'feature_atcoder_submissions';
+
+function parseFlagValue(value, fallback = false) {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'enabled';
+}
+
 // Login
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
@@ -48,10 +57,53 @@ router.post('/login', async (req, res) => {
 // Protect all routes below
 router.use(authMiddleware);
 
+router.get('/feature-flags', async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT key_name, value FROM system_metadata WHERE key_name = ?', [FEATURE_ATCODER_SUBMISSIONS]);
+    const atcoderRow = rows.find((r) => r.key_name === FEATURE_ATCODER_SUBMISSIONS);
+
+    res.json({
+      success: true,
+      data: {
+        atcoderSubmissions: parseFlagValue(atcoderRow?.value, false)
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Error al obtener feature flags' });
+  }
+});
+
+router.put('/feature-flags/atcoder-submissions', async (req, res) => {
+  const enabled = parseFlagValue(req.body?.enabled, false);
+
+  try {
+    await db.query(
+      `INSERT INTO system_metadata (key_name, value)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = CURRENT_TIMESTAMP`,
+      [FEATURE_ATCODER_SUBMISSIONS, enabled ? '1' : '0']
+    );
+
+    await logAction({
+      adminId: req.admin.id,
+      action: 'TOGGLE_ATCODER_SUBMISSIONS',
+      details: { enabled },
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    res.json({ success: true, data: { atcoderSubmissions: enabled } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Error al actualizar feature flag' });
+  }
+});
+
 // Get All Users (for admin, includes hidden)
 router.get('/users', async (req, res) => {
   try {
-    const [users] = await db.query('SELECT id, handle, is_hidden, enabled, last_updated FROM users ORDER BY handle ASC');
+    const [users] = await db.query('SELECT id, handle, leetcode_handle, atcoder_handle, codechef_handle, is_hidden, enabled, last_updated FROM users ORDER BY handle ASC');
     res.json({ success: true, data: users });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Error al obtener usuarios' });
@@ -61,7 +113,7 @@ router.get('/users', async (req, res) => {
 // Add User
 // Add User (Full Initialization)
 router.post('/users', async (req, res) => {
-  const { handle } = req.body;
+  const { handle, leetcodeHandle, atcoderHandle, codechefHandle } = req.body;
   if (!handle) return res.status(400).json({ success: false, error: 'Handle requerido' });
 
   try {
@@ -84,7 +136,11 @@ router.post('/users', async (req, res) => {
     }
 
     // 3. Create User in DB
-    const userId = await User.create(handle);
+    const userId = await User.create(handle, {
+      leetcodeHandle,
+      atcoderHandle,
+      codechefHandle
+    });
 
     // 4. Update Info
     const avatarUrl = userInfo.avatar || userInfo.titlePhoto || null;
@@ -100,6 +156,12 @@ router.post('/users', async (req, res) => {
 
     // 5. Initialize Stats
     await db.query(`INSERT INTO user_stats (user_id) VALUES (?)`, [userId]);
+
+    await User.updatePlatformHandles(userId, {
+      leetcodeHandle,
+      atcoderHandle,
+      codechefHandle
+    });
 
     // 5.5 Cache Rating History
     try {
@@ -124,7 +186,7 @@ router.post('/users', async (req, res) => {
     await logAction({ 
         adminId: req.admin.id, 
         action: 'CREATE_USER', 
-        details: { handle, userId, rank: userInfo.rank }, 
+      details: { handle, userId, rank: userInfo.rank, leetcodeHandle, atcoderHandle, codechefHandle }, 
         ip: req.ip, 
         userAgent: req.get('User-Agent') 
     });
@@ -134,6 +196,9 @@ router.post('/users', async (req, res) => {
         message: 'Usuario creado y trackeado exitosamente',
         data: {
             handle,
+          leetcodeHandle: leetcodeHandle || null,
+          atcoderHandle: atcoderHandle || null,
+          codechefHandle: codechefHandle || null,
             newSubmissions: trackResult.newSubmissions,
             streak: streakResult.streak,
             rank: userInfo.rank
@@ -259,6 +324,52 @@ router.put('/users/:handle/rename', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: 'Error al renombrar usuario' });
+  }
+});
+
+// Update platform handles (LeetCode, AtCoder, CodeChef)
+router.put('/users/:handle/platform-handles', async (req, res) => {
+  const { handle } = req.params;
+  const { leetcodeHandle, atcoderHandle, codechefHandle } = req.body;
+
+  try {
+    const user = await User.findByHandle(handle);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    await User.updatePlatformHandles(user.id, {
+      leetcodeHandle,
+      atcoderHandle,
+      codechefHandle
+    });
+
+    await logAction({
+      adminId: req.admin.id,
+      action: 'UPDATE_PLATFORM_HANDLES',
+      details: {
+        handle,
+        leetcodeHandle: leetcodeHandle || null,
+        atcoderHandle: atcoderHandle || null,
+        codechefHandle: codechefHandle || null
+      },
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    res.json({
+      success: true,
+      message: 'Handles de plataformas actualizados',
+      data: {
+        handle,
+        leetcodeHandle: leetcodeHandle || null,
+        atcoderHandle: atcoderHandle || null,
+        codechefHandle: codechefHandle || null
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Error al actualizar handles de plataformas' });
   }
 });
 

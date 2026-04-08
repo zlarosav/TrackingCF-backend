@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { randomUUID } = require('crypto');
 const usersRouter = require('./routes/users');
 const submissionsRouter = require('./routes/submissions');
 const contestsRouter = require('./routes/contests');
@@ -39,9 +40,57 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Logging middleware
+// Request logging middleware with status and timing
+const REDACT_KEYS = new Set(['password', 'token', 'authorization', 'jwt', 'secret', 'apiKey']);
+
+function sanitizeForLog(value) {
+  if (value === null || value === undefined) return value;
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeForLog(item));
+  }
+
+  if (typeof value === 'object') {
+    const output = {};
+    for (const [key, val] of Object.entries(value)) {
+      output[key] = REDACT_KEYS.has(key) ? '[REDACTED]' : sanitizeForLog(val);
+    }
+    return output;
+  }
+
+  return value;
+}
+
+function getStatusTag(status) {
+  if (status >= 500) return 'ERR';
+  if (status >= 400) return 'WARN';
+  if (status >= 300) return 'REDIR';
+  return 'OK';
+}
+
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  const requestId = randomUUID().slice(0, 8);
+  const start = process.hrtime.bigint();
+  const startedAt = new Date().toISOString();
+
+  const safeQuery = sanitizeForLog(req.query);
+  const safeBody = sanitizeForLog(req.body);
+  const bodyPreview = req.method === 'GET' || req.method === 'HEAD' ? '' : ` body=${JSON.stringify(safeBody)}`;
+  const queryPreview = Object.keys(safeQuery || {}).length ? ` query=${JSON.stringify(safeQuery)}` : '';
+
+  console.log(`[REQ ${requestId}] ${startedAt} ${req.method} ${req.originalUrl} ip=${req.ip}${queryPreview}${bodyPreview}`);
+
+  res.on('finish', () => {
+    const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+    const status = res.statusCode;
+    const statusTag = getStatusTag(status);
+    const contentLength = res.getHeader('content-length') || '-';
+
+    console.log(
+      `[RES ${requestId}] ${statusTag} ${status} ${req.method} ${req.originalUrl} ${durationMs.toFixed(1)}ms bytes=${contentLength}`
+    );
+  });
+
   next();
 });
 

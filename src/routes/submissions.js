@@ -2,8 +2,26 @@ const express = require('express');
 const User = require('../models/User');
 const Submission = require('../models/Submission');
 const { getUserDetailedStats } = require('../services/statsService');
+const db = require('../config/database');
 
 const router = express.Router();
+const FEATURE_ATCODER_SUBMISSIONS = 'feature_atcoder_submissions';
+
+async function isFeatureEnabled(key) {
+  try {
+    const [rows] = await db.query(
+      'SELECT value FROM system_metadata WHERE key_name = ? LIMIT 1',
+      [key]
+    );
+
+    if (!rows.length) return false;
+    const value = String(rows[0].value || '').trim().toLowerCase();
+    return value === '1' || value === 'true' || value === 'on' || value === 'enabled';
+  } catch (err) {
+    console.error(`Error leyendo feature flag ${key}:`, err.message);
+    return false;
+  }
+}
 
 /**
  * GET /api/submissions
@@ -16,6 +34,7 @@ router.get('/', async (req, res) => {
     const sortBy = req.query.sortBy || 'submission_time';
     const order = req.query.order || 'desc';
     const limit = req.query.limit ? parseInt(req.query.limit) : 20;
+    const requestedPlatform = String(req.query.platform || 'all').trim().toLowerCase();
 
     // Calcular fecha inicial según el periodo
     let dateFrom = null;
@@ -36,11 +55,10 @@ router.get('/', async (req, res) => {
         dateFrom = null;
     }
 
-    const db = require('../config/database');
-    
     let query = `
       SELECT 
         s.id,
+        s.platform,
         s.contest_id,
         s.problem_index,
         s.problem_name,
@@ -55,6 +73,23 @@ router.get('/', async (req, res) => {
     `;
 
     const params = [];
+
+    const atcoderEnabled = await isFeatureEnabled(FEATURE_ATCODER_SUBMISSIONS);
+    const allowedPlatforms = ['CODEFORCES'];
+    if (atcoderEnabled) allowedPlatforms.push('ATCODER');
+
+    let effectivePlatform = 'all';
+    if (requestedPlatform === 'codeforces') effectivePlatform = 'codeforces';
+    else if (requestedPlatform === 'atcoder') effectivePlatform = atcoderEnabled ? 'atcoder' : 'codeforces';
+
+    if (effectivePlatform === 'all') {
+      query += ` AND s.platform IN (${allowedPlatforms.map(() => '?').join(', ')})`;
+      params.push(...allowedPlatforms);
+    } else if (effectivePlatform === 'codeforces') {
+      query += ` AND s.platform = 'CODEFORCES'`;
+    } else if (effectivePlatform === 'atcoder') {
+      query += ` AND s.platform = 'ATCODER'`;
+    }
     
     if (dateFrom) {
       query += ` AND s.submission_time >= ?`;
@@ -92,7 +127,11 @@ router.get('/', async (req, res) => {
       data: {
         submissions,
         period,
-        total: rows.length
+        total: rows.length,
+        platform: effectivePlatform,
+        flags: {
+          atcoderSubmissions: atcoderEnabled
+        }
       }
     });
 

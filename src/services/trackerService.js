@@ -5,6 +5,21 @@ const User = require('../models/User');
 const Submission = require('../models/Submission');
 const { calculateUserStats } = require('./statsService');
 const db = require('../config/database');
+const { normalizeAcceptedSubmissions } = require('./atcoderService');
+
+const FEATURE_ATCODER_SUBMISSIONS = 'feature_atcoder_submissions';
+
+async function isFeatureEnabled(key, fallback = false) {
+  try {
+    const [rows] = await db.query('SELECT value FROM system_metadata WHERE key_name = ? LIMIT 1', [key]);
+    if (!rows.length) return fallback;
+    const value = String(rows[0].value || '').trim().toLowerCase();
+    return value === '1' || value === 'true' || value === 'on' || value === 'enabled';
+  } catch (err) {
+    console.error(`⚠️  Error leyendo feature flag ${key}:`, err.message);
+    return fallback;
+  }
+}
 
 /**
  * Filtra submissions válidas (OK, fecha válida, sin duplicados)
@@ -44,6 +59,7 @@ function formatSubmission(sub) {
     .toFormat('yyyy-MM-dd HH:mm:ss');
 
   return {
+    platform: 'CODEFORCES',
     contestId: sub.problem.contestId,
     problemIndex: sub.problem.index,
     problemName: sub.problem.name,
@@ -144,6 +160,25 @@ async function trackUser(handle) {
         rank: user.rank,
         lastSubmissionTime: latestSubmission.submissionTime
       });
+    }
+
+    // Optional AtCoder tracking behind feature flag to protect Codeforces flow.
+    if (await isFeatureEnabled(FEATURE_ATCODER_SUBMISSIONS, false)) {
+      const atcoderHandle = user.atcoder_handle;
+      if (atcoderHandle) {
+        try {
+          const lastAtcoder = await Submission.getLastSubmissionTimeByPlatform(user.id, 'ATCODER');
+          const fromSecond = lastAtcoder ? Math.floor(new Date(lastAtcoder).getTime() / 1000) : 1735689600;
+
+          const atcoderSubmissions = await normalizeAcceptedSubmissions(atcoderHandle, fromSecond);
+          const atcoderNew = await Submission.bulkCreate(user.id, atcoderSubmissions);
+          if (atcoderNew > 0) {
+            console.log(`✅ ${handle} (${atcoderHandle}) - ${atcoderNew} nuevas submissions ATCODER`);
+          }
+        } catch (atErr) {
+          console.error(`⚠️  Error trackeando AtCoder para ${handle}:`, atErr.message);
+        }
+      }
     }
 
     // Recalcular estadísticas del usuario
