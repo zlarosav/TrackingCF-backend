@@ -110,6 +110,60 @@ router.get('/users', async (req, res) => {
   }
 });
 
+// Quick status summary for enable/visibility diagnostics
+router.get('/users/status-summary', async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(enabled = 1) AS enabled,
+         SUM(enabled = 0) AS disabled,
+         SUM(is_hidden = 1) AS hidden,
+         SUM(is_hidden = 0) AS visible
+       FROM users`
+    );
+
+    res.json({ success: true, data: rows[0] || {} });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Error al obtener resumen de usuarios' });
+  }
+});
+
+// Get disabled users list (for quick diagnostics)
+router.get('/users/disabled', async (req, res) => {
+  try {
+    const [users] = await db.query(
+      'SELECT id, handle, is_hidden, enabled, last_updated FROM users WHERE enabled = 0 ORDER BY last_updated DESC, handle ASC'
+    );
+
+    res.json({ success: true, data: users, total: users.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Error al obtener usuarios deshabilitados' });
+  }
+});
+
+// Bulk re-enable all disabled users
+router.put('/users/enable-all-disabled', async (req, res) => {
+  try {
+    const [result] = await db.query('UPDATE users SET enabled = 1 WHERE enabled = 0');
+
+    await logAction({
+      adminId: req.admin.id,
+      action: 'ENABLE_ALL_DISABLED_USERS',
+      details: { affectedRows: result.affectedRows },
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    res.json({ success: true, enabled: result.affectedRows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Error al habilitar usuarios deshabilitados' });
+  }
+});
+
 // Add User
 // Add User (Full Initialization)
 router.post('/users', async (req, res) => {
@@ -236,20 +290,21 @@ router.put('/users/:handle/visibility', async (req, res) => {
   }
 });
 
-// Toggle Enabled/Disabled
+// Set Enabled/Disabled explicitly (idempotent)
 router.put('/users/:handle/enable', async (req, res) => {
   const { handle } = req.params;
   try {
     const [rows] = await db.query('SELECT enabled FROM users WHERE handle = ?', [handle]);
     if (rows.length === 0) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
 
-    const newStatus = !rows[0].enabled;
+    const hasExplicitStatus = req.body && Object.prototype.hasOwnProperty.call(req.body, 'enabled');
+    const newStatus = hasExplicitStatus ? parseFlagValue(req.body.enabled, false) : !rows[0].enabled;
     await db.query('UPDATE users SET enabled = ? WHERE handle = ?', [newStatus, handle]);
 
     await logAction({ 
         adminId: req.admin.id, 
-        action: 'TOGGLE_ENABLED', 
-        details: { handle, newStatus }, 
+        action: hasExplicitStatus ? 'SET_ENABLED' : 'TOGGLE_ENABLED', 
+        details: { handle, previousStatus: !!rows[0].enabled, newStatus }, 
         ip: req.ip, 
         userAgent: req.get('User-Agent') 
     });

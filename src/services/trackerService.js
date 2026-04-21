@@ -107,19 +107,9 @@ async function trackUser(handle) {
           }
       }
     } catch (err) {
-      // Detectar si el handle ya no existe en Codeforces
-      if (err.response?.status === 404 || 
-          err.message?.includes('not found') ||
-          err.message?.includes('handles: Incorrect parameter')) {
-        // Handle no existe - inhabilitar usuario
-        await User.updateEnabled(user.id, false);
-        console.log(`❌ ${handle} - Usuario no encontrado en Codeforces, cuenta inhabilitada`);
-        return { handle, newSubmissions: 0, error: 'User not found - account disabled' };
-      }
-      
-      // Otros errores (API caída, timeout, etc.) - NO inhabilitar
-      console.log(`⚠️  ${handle} - Error temporal obteniendo info (API caída?): ${err.message}`);
-      // Continuar con el tracking normal
+      // Nunca deshabilitar usuarios automáticamente por errores externos de la API.
+      // Continuamos el tracking para que el sistema se recupere solo en el siguiente ciclo.
+      console.log(`⚠️  ${handle} - No se pudo actualizar perfil de Codeforces: ${err.message}`);
     }
 
     // Obtener la última submission guardada
