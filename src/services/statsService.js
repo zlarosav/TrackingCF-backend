@@ -263,10 +263,57 @@ async function getPlatformStats() {
   }
 }
 
+/**
+ * Obtiene actividad diaria para el heatmap (últimos 365 días)
+ * @param {number} userId - ID del usuario
+ * @param {number} [days=365] - Días hacia atrás
+ * @returns {Promise<Array>} [{ date: 'YYYY-MM-DD', count: number }, ...]
+ */
+async function getActivityHeatmap(userId, days = 365) {
+  try {
+    const { DateTime } = require('luxon');
+    const tz = process.env.TZ || 'America/Lima';
+    const nowTz = DateTime.now().setZone(tz);
+    const offsetMinutes = nowTz.offset;
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const absMinutes = Math.abs(offsetMinutes);
+    const hours = Math.floor(absMinutes / 60);
+    const minutes = absMinutes % 60;
+    const intervalStr = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+    const [rows] = await db.query(
+      `SELECT 
+         DATE_FORMAT(DATE_ADD(submission_time, INTERVAL ? HOUR_MINUTE), '%Y-%m-%d') as date,
+         SUM(
+           CASE 
+             WHEN rating IS NULL OR rating = 0 THEN 1
+             WHEN rating >= 800 AND rating <= 900 THEN 1
+             WHEN rating = 1000 THEN 2
+             WHEN rating = 1100 THEN 3
+             WHEN rating >= 1200 THEN 5
+             ELSE 0
+           END
+         ) as count
+       FROM submissions
+       WHERE user_id = ?
+         AND submission_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY date
+       ORDER BY date ASC`,
+      [intervalStr, userId, days]
+    );
+
+    return rows;
+  } catch (err) {
+    console.error('❌ Error obteniendo heatmap:', err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   calculateScore,
   getRatingCategory,
   calculateUserStats,
   getUserDetailedStats,
-  getPlatformStats
+  getPlatformStats,
+  getActivityHeatmap
 };

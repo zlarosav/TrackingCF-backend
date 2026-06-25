@@ -1,7 +1,7 @@
 const express = require('express');
 const User = require('../models/User');
 const Submission = require('../models/Submission');
-const { getUserDetailedStats } = require('../services/statsService');
+const { getUserDetailedStats, getActivityHeatmap } = require('../services/statsService');
 const db = require('../config/database');
 
 const router = express.Router();
@@ -263,6 +263,25 @@ router.get('/:handle/latest', async (req, res) => {
       success: false,
       error: 'Error al obtener últimas submissions'
     });
+  }
+});
+
+/**
+ * GET /api/submissions/:handle/heatmap
+ * Obtiene actividad diaria para heatmap (últimos 365 días)
+ */
+router.get('/:handle/heatmap', async (req, res) => {
+  try {
+    const { handle } = req.params;
+    const days = parseInt(req.query.days) || 365;
+    const user = await User.findByHandle(handle);
+    if (!user) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+
+    const data = await getActivityHeatmap(user.id, days);
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Error en GET /api/submissions/:handle/heatmap:', err.message);
+    res.status(500).json({ success: false, error: 'Error al obtener heatmap' });
   }
 });
 
