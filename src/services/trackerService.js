@@ -28,7 +28,7 @@ async function isFeatureEnabled(key, fallback = false) {
  */
 function filterValidSubmissions(submissions) {
   const seen = new Set();
-  const cutoffTimestamp = 1735689600; // 1 de enero de 2026 00:00 UTC
+  const cutoffTimestamp = 1704067200; // 1 de enero de 2024 00:00 UTC
 
   return submissions.filter(sub => {
     // Solo aceptar veredicto OK

@@ -584,4 +584,59 @@ router.get('/audit-logs', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/backfill
+ * Backfill: carga todas las submissions desde 2024 para todos los usuarios
+ */
+router.post('/backfill', async (req, res) => {
+  try {
+    const db = require('../config/database');
+    const cfApi = require('../utils/callCodeforcesApi');
+    const Submission = require('../models/Submission');
+    const { calculateUserStats } = require('../services/statsService');
+    const { DateTime } = require('luxon');
+    const { filterValidSubmissions, formatSubmission } = require('../services/trackerService');
+
+    const [users] = await db.query('SELECT id, handle FROM users WHERE enabled = 1');
+    const results = [];
+
+    for (const user of users) {
+      try {
+        const raw = await cfApi('user.status', { handle: user.handle, from: 1, count: 5000 });
+        if (!raw || !raw.length) continue;
+
+        const valid = raw.filter(sub => {
+          if (sub.verdict !== 'OK') return false;
+          if (sub.creationTimeSeconds < 1704067200) return false; // desde 2024
+          return true;
+        });
+
+        if (!valid.length) continue;
+
+        const formatted = valid.map(formatSubmission);
+        const newCount = await Submission.bulkCreate(user.id, formatted);
+        await calculateUserStats(user.id);
+
+        if (newCount > 0) {
+          await db.query('UPDATE users SET last_submission_time = ?, last_updated = NOW() WHERE id = ?', [formatted[0].submissionTime, user.id]);
+        }
+
+        results.push({ handle: user.handle, newSubmissions: newCount });
+        console.log(`✅ ${user.handle}: ${newCount} nuevas`);
+        await new Promise(r => setTimeout(r, 600));
+      } catch (err) {
+        results.push({ handle: user.handle, error: err.message });
+        console.error(`❌ ${user.handle}: ${err.message}`);
+      }
+    }
+
+    await logAction({ adminId: req.admin.id, action: 'BACKFILL', details: { results }, ip: req.ip, userAgent: req.get('User-Agent') });
+
+    res.json({ success: true, data: results });
+  } catch (err) {
+    console.error('Backfill error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

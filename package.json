@@ -16,7 +16,8 @@
     "admin:delete": "node src/scripts/deleteAdmin.js",
     "tracker:run": "node src/scripts/runTracker.js",
     "tracker:force": "node src/scripts/runTracker.js --force",
-    "contests:update": "node src/scripts/updateContests.js"
+    "contests:update": "node src/scripts/updateContests.js",
+    "backfill": "node src/scripts/backfillSubmissions.js"
   },
   "keywords": [
     "codeforces",
