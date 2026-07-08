@@ -108,6 +108,7 @@ app.use('/api', auditMiddleware);
 app.use('/api/users', usersRouter);
 app.use('/api/submissions', submissionsRouter);
 app.use('/api/contests', contestsRouter);
+app.use('/api/meta', require('./routes/meta'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/chat', require('./routes/chat')); // Chatbot routes
 

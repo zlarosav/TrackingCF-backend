@@ -181,8 +181,68 @@ const getUpcomingContests = async () => {
         }));
     };
 
+// Contests recientes (finalizados) que tienen >=1 participante rastreado, cada uno
+// con sus participantes ya embebidos. Reemplaza el waterfall N+1 del frontend por 2 queries.
+const getRecentContestsWithParticipants = async (limit = 25) => {
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 25));
+
+    // Query A: contests finalizados con al menos un participante visible/activo.
+    const [contests] = await db.query(
+        `SELECT c.*
+         FROM contests c
+         WHERE (c.startTimeSeconds + c.durationSeconds) <= UNIX_TIMESTAMP()
+           AND EXISTS (
+               SELECT 1 FROM submissions s
+               INNER JOIN users u ON u.id = s.user_id
+               WHERE s.contest_id = c.id AND s.platform = c.platform
+                 AND u.enabled = TRUE AND u.is_hidden = FALSE
+           )
+         ORDER BY c.startTimeSeconds DESC
+         LIMIT ?`,
+        [safeLimit]
+    );
+
+    if (!contests.length) return [];
+
+    // Query B: participantes de esos contests en una sola consulta.
+    const pairs = contests.map(c => [String(c.id), c.platform]);
+    const placeholders = pairs.map(() => '(?, ?)').join(', ');
+    const [rows] = await db.query(
+        `SELECT s.contest_id, s.platform,
+                u.id, u.handle, u.avatar_url, u.rating, u.rank, u.current_streak, u.last_streak_date
+         FROM submissions s
+         INNER JOIN users u ON u.id = s.user_id
+         WHERE (s.contest_id, s.platform) IN (${placeholders})
+           AND u.enabled = TRUE AND u.is_hidden = FALSE
+         GROUP BY s.contest_id, s.platform, u.id
+         ORDER BY u.rating DESC, u.handle ASC`,
+        pairs.flat()
+    );
+
+    // Agrupar participantes por contest (clave platform:id).
+    const byContest = new Map();
+    for (const row of rows) {
+        const key = `${row.platform}:${row.contest_id}`;
+        if (!byContest.has(key)) byContest.set(key, []);
+        byContest.get(key).push({
+            ...User.formatUser(row),
+            streak_active: User.isStreakActive(row.last_streak_date, row.current_streak)
+        });
+    }
+
+    return contests.map(c => {
+        const participants = byContest.get(`${c.platform}:${c.id}`) || [];
+        return {
+            ...c,
+            participants: participants.slice(0, 4),
+            participantCount: participants.length
+        };
+    });
+};
+
 module.exports = {
     updateContests,
         getUpcomingContests,
-        getContestParticipants
+        getContestParticipants,
+        getRecentContestsWithParticipants
 };
