@@ -22,6 +22,26 @@ API REST para trackear y visualizar la actividad de usuarios en Codeforces. Dise
 
 ## 🚀 Instalación
 
+### Quick Start after clone
+
+```bash
+git clone https://github.com/zlarosav/TrackingCF-backend.git
+cd TrackingCF-backend
+npm install
+cp .env.example .env
+# Edita .env con MySQL, Codeforces API y JWT_SECRET
+npm run setup
+npm start
+```
+
+El comando `npm run setup` deja listo el primer deploy:
+
+- Verifica variables requeridas.
+- Crea/verifica la base de datos y tablas.
+- Crea el primer administrador si aún no existe.
+- Permite agregar usuarios iniciales de Codeforces.
+- Te indica cómo continuar con el frontend y `/consola`.
+
 ### 1. Clonar el repositorio
 
 ```bash
@@ -60,6 +80,12 @@ DB_NAME=tracking_cf
 API_KEY_CF=tu_api_key
 API_SECRET_CF=tu_api_secret
 
+# Security (REQUERIDA)
+JWT_SECRET=un_secreto_largo_y_aleatorio
+
+# Gemini API (OPCIONAL, solo para Chat AI)
+GEMINI_API_KEY=
+
 # Timezone (usado para rachas y logs)
 TZ=America/Lima
 
@@ -67,21 +93,44 @@ TZ=America/Lima
 FRONTEND_URL=https://tu-dominio-custom.com
 ```
 
-> **⚠️ Importante:** Las credenciales de Codeforces API son **obligatorias**. Obtén las tuyas en: https://codeforces.com/settings/api
+> **⚠️ Importante:** Las credenciales de Codeforces API son **obligatorias** para crear y trackear usuarios. Obtén las tuyas en: https://codeforces.com/settings/api
+>
+> `GEMINI_API_KEY` es opcional. Si no la configuras, solo el Chat AI dejará de funcionar.
 
-### 4. Inicializar la base de datos
+### 4. Ejecutar setup inicial
 
 ```bash
-npm run db:init
+npm run setup
 ```
 
-Este comando creará la base de datos `tracking_cf` y todas las tablas necesarias (`users`, `submissions`, `user_stats`).
+Este comando creará la base de datos, las tablas, el primer admin y opcionalmente usuarios iniciales.
+
+También puedes ejecutarlo en modo no interactivo, útil para Railway/Render one-off commands:
+
+```bash
+npm run setup -- --admin-user=admin --admin-password=una_clave_segura --users=zlarosav,zxpty
+```
+
+Si solo quieres crear el admin y agregar usuarios luego desde `/consola`:
+
+```bash
+npm run setup -- --admin-user=admin --admin-password=una_clave_segura --skip-users
+```
+
+### 5. Iniciar el backend
+
+```bash
+npm start
+```
+
+Luego entra a la consola admin desde el frontend en `/consola` para agregar, ocultar, renombrar o trackear usuarios.
 
 ## 📝 Comandos Disponibles
 
 ### Desarrollo
 
 ```bash
+npm run setup        # Primer setup guiado (DB + primer admin + usuarios iniciales)
 npm run dev          # Iniciar servidor en modo desarrollo con hot-reload
 npm start            # Iniciar servidor en modo producción
 ```
@@ -114,6 +163,8 @@ npm run tracker:force  # Forzar tracking completo (ignora caché)
 npm run db:init    # Inicializar/reinicializar la base de datos
 npm run db:delete  # Eliminar la base de datos (requiere confirmación)
 ```
+
+> Para forks nuevos, usa `npm run setup`. `db:init` queda como comando avanzado si solo quieres preparar tablas.
 
 ## 🔄 Sistema de Tracking Automático
 
@@ -232,6 +283,34 @@ El tracker detecta automáticamente handles que ya no existen:
 
 ## 📦 Despliegue
 
+### Camino recomendado para forks open source
+
+1. Haz fork del backend y frontend.
+2. Crea una base de datos MySQL en Railway, Render, PlanetScale, Aiven o tu proveedor preferido.
+3. Despliega el backend en Railway/Render como servicio Node.js.
+4. Configura las variables de entorno del backend:
+   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+   - `API_KEY_CF`, `API_SECRET_CF`
+   - `JWT_SECRET`
+   - `TZ`
+   - `FRONTEND_URL` con la URL pública del frontend
+   - `GEMINI_API_KEY` solo si usarás Chat AI
+5. Ejecuta un one-off command en el backend:
+
+```bash
+npm run setup -- --admin-user=admin --admin-password=una_clave_segura --skip-users
+```
+
+6. Despliega el frontend en Vercel y configura:
+
+```env
+NEXT_PUBLIC_API_URL=https://tu-backend.com/api
+```
+
+7. Abre `https://tu-frontend.com/consola`, inicia sesión con el admin y agrega usuarios.
+
+### Plataformas soportadas
+
 Este backend está diseñado para desplegarse en:
 
 - **Railway** / **Render** / **Fly.io** (Node.js)
@@ -241,11 +320,22 @@ Este backend está diseñado para desplegarse en:
 **Importante:** 
 - Configura las variables de entorno en tu plataforma
 - Asegúrate de que el `TZ` esté configurado correctamente
+- Configura `JWT_SECRET` con un valor largo y aleatorio
 - Los cron jobs se ejecutan automáticamente al iniciar el servidor
+
+### Checklist de producción
+
+- Backend responde en `GET /api/health`.
+- Base de datos MySQL acepta conexiones desde el backend.
+- `npm run setup` se ejecutó al menos una vez.
+- Existe al menos un admin en `/consola`.
+- El frontend tiene `NEXT_PUBLIC_API_URL` apuntando al backend con `/api`.
+- El backend tiene `FRONTEND_URL` apuntando al dominio público del frontend.
 
 ## 🔒 Seguridad y Buenas Prácticas
 
 - ✅ Variables de entorno para credenciales
+- ✅ `JWT_SECRET` configurable para tokens de administrador
 - ✅ CORS configurado con whitelist
 - ✅ Validación de handles de Codeforces
 - ✅ Error handling con try-catch

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "setup": "node src/scripts/setup.js",
     "db:init": "node src/scripts/initDb.js",
     "db:delete": "node src/scripts/deleteDb.js",
     "user:create": "node src/scripts/createUser.js",

@@ -4,16 +4,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 const authMiddleware = require('../middleware/auth');
-// We need to access some user logic, ideally refactored, but for now we might need to duplicate or require User model
-// Ideally we should use the script logic or the service if it existed.
-// Looking at package.json, we have scripts/createUser.js. 
-// We should probably invoke the logic from there or a service.
-// Let's check if there is a User model with create method. 
-// Checking User.js in previous file view, it has findByHandle.
 const User = require('../models/User'); 
 const { logAction } = require('../services/auditService');
 const { trackUser } = require('../services/trackerService');
-const { getUserInfo, getEnrichedRatingHistory } = require('../services/codeforcesService');
+const { getUserInfo } = require('../services/codeforcesService');
+const { createTrackedUser } = require('../services/userProvisioningService');
 // const { updateContests } = require('../services/contestService'); // REVERTIDO
 
 const FEATURE_ATCODER_SUBMISSIONS = 'feature_atcoder_submissions';
@@ -171,97 +166,48 @@ router.post('/users', async (req, res) => {
   if (!handle) return res.status(400).json({ success: false, error: 'Handle requerido' });
 
   try {
-    // 0. Update contests data to ensure freshness 
-    // REVERTIDO: Solo user history se actualiza aquí.
-    // await updateContests();
-
-    // 1. Check if exists in DB
-    const existing = await User.findByHandle(handle);
-    if (existing) {
-      return res.status(400).json({ success: false, error: 'El usuario ya existe' });
-    }
-
-    // 2. Verify in Codeforces
-    let userInfo;
-    try {
-        userInfo = await getUserInfo(handle);
-    } catch (err) {
-        return res.status(404).json({ success: false, error: `Usuario '${handle}' no encontrado en Codeforces` });
-    }
-
-    // 3. Create User in DB
-    const userId = await User.create(handle, {
+    const createdUser = await createTrackedUser({
+      handle,
       leetcodeHandle,
       atcoderHandle,
       codechefHandle
     });
 
-    // 4. Update Info
-    const avatarUrl = userInfo.avatar || userInfo.titlePhoto || null;
-    const fullAvatarUrl = avatarUrl && avatarUrl.startsWith('//') ? `https:${avatarUrl}` : avatarUrl;
-
-    await User.updateUserInfo(userId, {
-        avatarUrl: fullAvatarUrl,
-        rating: userInfo.rating || null,
-        rank: userInfo.rank || null,
-        lastSubmissionTime: null
+    await logAction({
+      adminId: req.admin.id,
+      action: 'CREATE_USER',
+      details: {
+        handle: createdUser.handle,
+        userId: createdUser.userId,
+        rank: createdUser.rank,
+        leetcodeHandle: createdUser.leetcodeHandle,
+        atcoderHandle: createdUser.atcoderHandle,
+        codechefHandle: createdUser.codechefHandle
+      },
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
     });
 
-
-    // 5. Initialize Stats
-    await db.query(`INSERT INTO user_stats (user_id) VALUES (?)`, [userId]);
-
-    await User.updatePlatformHandles(userId, {
-      leetcodeHandle,
-      atcoderHandle,
-      codechefHandle
-    });
-
-    // 5.5 Cache Rating History
-    try {
-        const history = await getEnrichedRatingHistory(handle);
-        await User.updateRatingHistory(userId, history);
-    } catch (e) {
-        console.error(`Error saving rating history for ${handle}:`, e.message);
-    }
-
-    // 6. Track User
-    const trackResult = await trackUser(handle);
-    
-    // 7. Calculate Streak
-    const streakResult = await User.intelligentStreakCalculation(userId);
-    if (streakResult.streak > 0) {
-        await db.query(
-            'UPDATE users SET current_streak = ?, last_streak_date = ? WHERE id = ?',
-            [streakResult.streak, streakResult.lastDate, userId]
-        );
-    }
-
-    await logAction({ 
-        adminId: req.admin.id, 
-        action: 'CREATE_USER', 
-      details: { handle, userId, rank: userInfo.rank, leetcodeHandle, atcoderHandle, codechefHandle }, 
-        ip: req.ip, 
-        userAgent: req.get('User-Agent') 
-    });
-
-    res.json({ 
-        success: true, 
-        message: 'Usuario creado y trackeado exitosamente',
-        data: {
-            handle,
-          leetcodeHandle: leetcodeHandle || null,
-          atcoderHandle: atcoderHandle || null,
-          codechefHandle: codechefHandle || null,
-            newSubmissions: trackResult.newSubmissions,
-            streak: streakResult.streak,
-            rank: userInfo.rank
-        }
+    res.json({
+      success: true,
+      message: 'Usuario creado y trackeado exitosamente',
+      data: {
+        handle: createdUser.handle,
+        leetcodeHandle: createdUser.leetcodeHandle,
+        atcoderHandle: createdUser.atcoderHandle,
+        codechefHandle: createdUser.codechefHandle,
+        newSubmissions: createdUser.newSubmissions,
+        streak: createdUser.streak,
+        rank: createdUser.rank,
+        warnings: createdUser.warnings
+      }
     });
 
   } catch (err) {
     console.error('Add User Error:', err);
-    res.status(500).json({ success: false, error: 'Error al agregar usuario: ' + err.message });
+    const statusCode = err.statusCode || 500;
+    const errorMessage = err.statusCode ? err.message : 'Error al agregar usuario: ' + err.message;
+    res.status(statusCode).json({ success: false, error: errorMessage });
   }
 });
 

@@ -5,7 +5,7 @@ const mysql = require('mysql2/promise');
 
 async function initDatabase() {
   let connection;
-  
+
   try {
     console.log('🔧 Inicializando base de datos...\n');
 
@@ -51,7 +51,7 @@ async function initDatabase() {
     for (const statement of statements) {
       try {
         await connection.query(statement);
-        
+
         if (statement.includes('CREATE TABLE')) {
           const match = statement.match(/CREATE TABLE.*?(?:IF NOT EXISTS)?\s+`?(\w+)`?/i);
           const tableName = match ? match[1] : 'desconocida';
@@ -64,14 +64,24 @@ async function initDatabase() {
     }
 
     console.log('\n✅ Base de datos inicializada correctamente');
-    await connection.end();
-    process.exit(0);
 
-  } catch (err) {
-    console.error('❌ Error inicializando base de datos:', err.message);
-    if (connection) await connection.end();
-    process.exit(1);
+    return { dbName, statements: statements.length };
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
   }
 }
 
-initDatabase();
+if (require.main === module) {
+  initDatabase()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('❌ Error inicializando base de datos:', err.message);
+      process.exit(1);
+    });
+}
+
+module.exports = {
+  initDatabase,
+};
