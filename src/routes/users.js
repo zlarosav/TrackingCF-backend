@@ -187,4 +187,58 @@ router.get('/:handle/rating-history', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/users/:handle/card
+ * Resumen liviano de un usuario para el hover card: avatar, rating, rank, racha
+ * y submissions de los últimos 7 días. Dos queries indexadas — pensado para
+ * llamarse al hacer hover, no al cargar listas.
+ */
+router.get('/:handle/card', async (req, res) => {
+  try {
+    const { handle } = req.params;
+    const db = require('../config/database');
+    const { DateTime } = require('luxon');
+    const { getRecentSubmissionCounts } = require('../services/statsService');
+
+    const [rows] = await db.query(`
+      SELECT u.id, u.handle, u.avatar_url, u.rating, u.\`rank\`, u.current_streak, u.last_streak_date
+      FROM users u
+      WHERE u.handle = ? AND u.enabled = TRUE AND u.is_hidden = FALSE
+    `, [handle]);
+
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    const user = rows[0];
+    const counts = await getRecentSubmissionCounts(user.id, 7);
+    const countByDate = new Map(counts.map(r => [r.date, Number(r.count)]));
+
+    // Completa los 7 días del rango (incluye hoy) aunque no haya submissions en algunos.
+    const tz = process.env.TZ || 'America/Lima';
+    const today = DateTime.now().setZone(tz).startOf('day');
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const day = today.minus({ days: 6 - i });
+      const date = day.toFormat('yyyy-MM-dd');
+      return { date, count: countByDate.get(date) || 0 };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        handle: user.handle,
+        avatar_url: user.avatar_url,
+        rating: user.rating,
+        rank: user.rank,
+        current_streak: user.current_streak,
+        streak_active: User.isStreakActive(user.last_streak_date, user.current_streak),
+        last7Days
+      }
+    });
+  } catch (err) {
+    console.error(`Error en GET /api/users/${req.params.handle}/card:`, err.message);
+    res.status(500).json({ success: false, error: 'Error obteniendo resumen de usuario' });
+  }
+});
+
 module.exports = router;

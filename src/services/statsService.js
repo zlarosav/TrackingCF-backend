@@ -309,11 +309,50 @@ async function getActivityHeatmap(userId, days = 365) {
   }
 }
 
+/**
+ * Cantidad de submissions por día en los últimos N días (crudo, sin ponderar por rating).
+ * Reutiliza el mismo ajuste de zona horaria que getActivityHeatmap.
+ * @param {number} userId - ID del usuario
+ * @param {number} [days=7] - Días hacia atrás (inclusive hoy)
+ * @returns {Promise<Array>} [{ date: 'YYYY-MM-DD', count: number }, ...] — solo días con submissions
+ */
+async function getRecentSubmissionCounts(userId, days = 7) {
+  try {
+    const { DateTime } = require('luxon');
+    const tz = process.env.TZ || 'America/Lima';
+    const nowTz = DateTime.now().setZone(tz);
+    const offsetMinutes = nowTz.offset;
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const absMinutes = Math.abs(offsetMinutes);
+    const hours = Math.floor(absMinutes / 60);
+    const minutes = absMinutes % 60;
+    const intervalStr = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+    const [rows] = await db.query(
+      `SELECT
+         DATE_FORMAT(DATE_ADD(submission_time, INTERVAL ? HOUR_MINUTE), '%Y-%m-%d') as date,
+         COUNT(*) as count
+       FROM submissions
+       WHERE user_id = ?
+         AND submission_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY date
+       ORDER BY date ASC`,
+      [intervalStr, userId, days]
+    );
+
+    return rows;
+  } catch (err) {
+    console.error('❌ Error obteniendo submissions recientes:', err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   calculateScore,
   getRatingCategory,
   calculateUserStats,
   getUserDetailedStats,
   getPlatformStats,
-  getActivityHeatmap
+  getActivityHeatmap,
+  getRecentSubmissionCounts
 };
