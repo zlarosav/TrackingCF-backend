@@ -115,20 +115,26 @@ async function getUserDetailedStats(userId) {
   try {
     // Distribución por rating
     const [ratingDist] = await db.query(
-      `SELECT 
-         CASE 
-           WHEN rating IS NULL THEN 'Sin rating'
-           WHEN rating >= 800 AND rating <= 900 THEN '800-900'
-           WHEN rating = 1000 THEN '1000'
-           WHEN rating = 1100 THEN '1100'
-           WHEN rating >= 1200 THEN '1200+'
-           ELSE 'Otro'
-         END as category,
-         COUNT(*) as count
-       FROM submissions
-       WHERE user_id = $1
-       GROUP BY category
-       ORDER BY array_position(ARRAY['Sin rating', '800-900', '1000', '1100', '1200+', 'Otro'], category)`,
+      `SELECT category, count
+       FROM (
+         SELECT
+           CASE
+             WHEN rating IS NULL THEN 'Sin rating'
+             WHEN rating >= 800 AND rating <= 900 THEN '800-900'
+             WHEN rating = 1000 THEN '1000'
+             WHEN rating = 1100 THEN '1100'
+             WHEN rating >= 1200 THEN '1200+'
+             ELSE 'Otro'
+           END AS category,
+           COUNT(*) AS count
+         FROM submissions
+         WHERE user_id = $1
+         GROUP BY 1
+       ) AS rating_distribution
+       ORDER BY array_position(
+         ARRAY['Sin rating', '800-900', '1000', '1100', '1200+', 'Otro']::text[],
+         category
+       )`,
       [userId]
     );
 
