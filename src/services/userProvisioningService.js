@@ -2,6 +2,7 @@ const db = require('../config/database');
 const User = require('../models/User');
 const { getUserInfo, getEnrichedRatingHistory } = require('./codeforcesService');
 const { trackUser } = require('./trackerService');
+const normalizeCodeforcesAvatarUrl = require('../utils/normalizeCodeforcesAvatarUrl');
 
 class UserProvisioningError extends Error {
   constructor(message, code, statusCode = 400) {
@@ -10,13 +11,6 @@ class UserProvisioningError extends Error {
     this.code = code;
     this.statusCode = statusCode;
   }
-}
-
-function resolveCodeforcesAvatarUrl(avatarUrl) {
-  if (!avatarUrl) return null;
-  if (avatarUrl.startsWith('//')) return `https:${avatarUrl}`;
-  if (avatarUrl.startsWith('/')) return `https://codeforces.com${avatarUrl}`;
-  return avatarUrl;
 }
 
 function normalizeLogger(logger) {
@@ -84,7 +78,7 @@ async function createTrackedUser({
     userId = await User.create(cleanHandle, platformHandles);
     log.info(`Usuario '${cleanHandle}' creado con ID: ${userId}`);
 
-    const avatarUrl = resolveCodeforcesAvatarUrl(userInfo.avatar || userInfo.titlePhoto || null);
+    const avatarUrl = normalizeCodeforcesAvatarUrl(userInfo.avatar || userInfo.titlePhoto || null);
     await User.updateUserInfo(userId, {
       avatarUrl,
       rating: userInfo.rating || null,

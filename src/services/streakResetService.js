@@ -1,6 +1,7 @@
 const { DateTime } = require('luxon');
 const db = require('../config/database');
 const codeforcesService = require('./codeforcesService');
+const normalizeCodeforcesAvatarUrl = require('../utils/normalizeCodeforcesAvatarUrl');
 
 /**
  * Reset streaks for users who didn't submit yesterday
@@ -106,7 +107,7 @@ async function updateUserAvatars() {
       try {
         // Get user info from Codeforces
         const userInfo = await codeforcesService.getUserInfo(user.handle);
-        const newAvatarUrl = userInfo.avatar || userInfo.titlePhoto || null;
+        const newAvatarUrl = normalizeCodeforcesAvatarUrl(userInfo.avatar || userInfo.titlePhoto || null);
         
         // Check if avatar changed
         if (newAvatarUrl && newAvatarUrl !== user.avatar_url) {

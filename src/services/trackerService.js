@@ -6,6 +6,7 @@ const Submission = require('../models/Submission');
 const { calculateUserStats } = require('./statsService');
 const db = require('../config/database');
 const { normalizeAcceptedSubmissions } = require('./atcoderService');
+const normalizeCodeforcesAvatarUrl = require('../utils/normalizeCodeforcesAvatarUrl');
 
 const FEATURE_ATCODER_SUBMISSIONS = 'feature_atcoder_submissions';
 
@@ -90,7 +91,7 @@ async function trackUser(handle) {
       const userInfo = await codeforcesService.getUserInfo(handle);
       
       await User.updateUserInfo(user.id, {
-        avatarUrl: userInfo.avatar || userInfo.titlePhoto || null,
+        avatarUrl: normalizeCodeforcesAvatarUrl(userInfo.avatar || userInfo.titlePhoto || null),
         rating: userInfo.rating || null,
         rank: userInfo.rank || null,
         lastSubmissionTime: user.last_submission_time
