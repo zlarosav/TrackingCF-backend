@@ -87,13 +87,13 @@ async function getEnrichedRatingHistory(handle) {
           // Fetch sequentially with delay to avoid rate limits
           for (const id of missingIds) {
               try {
-                  // Fetch Standings (minimal) to get Problems
-                  // Optimization: No 'showUnofficial' (faster), rely on callCodeforcesApi retries
-                  const standings = await callCodeforcesApi('contest.standings', { 
-                      contestId: id, 
-                      from: 1, 
-                      count: 1
-                  });
+                  // Public standings requests must contain only contestId.
+                  // Codeforces rejects pagination/auth parameters for regular contests.
+                  const standings = await callCodeforcesApi(
+                      'contest.standings',
+                      { contestId: id },
+                      { anonymous: true }
+                  );
                   
                   const problems = standings.problems || [];
                   contestProblemsMap[id] = problems;

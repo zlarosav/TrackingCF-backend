@@ -14,11 +14,12 @@ const axios = require('axios');
  * @returns {Promise<Object|undefined>} The result of the API call if successful, or undefined if an error occurs.
  * @throws {Error} Throws an error if the API response status is not "OK".
  */
-const callCodeforcesApi = async (methodName, params = {}) => {
+const callCodeforcesApi = async (methodName, params = {}, options = {}) => {
   const apiKey = process.env.API_KEY_CF;
   const secret = process.env.API_SECRET_CF;
+  const anonymous = options.anonymous === true;
 
-  if (!apiKey || !secret) {
+  if (!anonymous && (!apiKey || !secret)) {
     console.warn('API_KEY_CF or API_SECRET_CF not configured');
     // Proceeding might fail for private methods, but some public ones might work without auth?
     // Actually, the user snippet forces auth. Let's assume auth is required or preferred.
@@ -27,12 +28,15 @@ const callCodeforcesApi = async (methodName, params = {}) => {
   const time = Math.floor(Date.now() / 1000);
   const rand = Math.floor(Math.random() * 1e6).toString().padStart(6, '0');
 
-  // Add mandatory parameters
-  const fullParams = {
-    ...params,
-    apiKey,
-    time,
-  };
+  // Regular public contest standings must be requested anonymously with only
+  // contestId. Adding apiKey/time/apiSig or pagination causes HTTP 400.
+  const fullParams = anonymous
+    ? { contestId: params.contestId }
+    : {
+        ...params,
+        apiKey,
+        time,
+      };
 
   // Sort alphabetically by key, then value
   const sortedParams = Object.entries(fullParams)
@@ -40,13 +44,14 @@ const callCodeforcesApi = async (methodName, params = {}) => {
     .map(([k, v]) => `${k}=${v}`)
     .join('&');
 
-  // Construct string to hash
-  const stringToHash = `${rand}/${methodName}?${sortedParams}#${secret}`;
-
-  const hash = crypto.createHash('sha512').update(stringToHash).digest('hex');
-  const apiSig = `${rand}${hash}`;
-
-  const url = `https://codeforces.com/api/${methodName}?${sortedParams}&apiSig=${apiSig}`;
+  const url = anonymous
+    ? `https://codeforces.com/api/${methodName}?${sortedParams}`
+    : (() => {
+        const stringToHash = `${rand}/${methodName}?${sortedParams}#${secret}`;
+        const hash = crypto.createHash('sha512').update(stringToHash).digest('hex');
+        const apiSig = `${rand}${hash}`;
+        return `https://codeforces.com/api/${methodName}?${sortedParams}&apiSig=${apiSig}`;
+      })();
 
   const MAX_RETRIES = 3;
   let attempt = 0;
@@ -62,7 +67,19 @@ const callCodeforcesApi = async (methodName, params = {}) => {
       } catch (err) {
           attempt++;
           const isTimeout = err.code === 'ECONNABORTED';
-          const isRateLimit = err.response?.status === 429;
+          const status = err.response?.status;
+          const isRateLimit = status === 429;
+          const isClientError = status >= 400 && status < 500 && !isRateLimit;
+          const apiComment = err.response?.data?.comment;
+
+          if (apiComment && err.message !== apiComment) {
+              err.message = apiComment;
+          }
+
+          if (isClientError) {
+              console.error(`❌ CF API Failed [${methodName}] with HTTP ${status}: ${err.message}`);
+              throw err;
+          }
           
           if (attempt >= MAX_RETRIES) {
                console.error(`❌ CF API Failed [${methodName}] after ${MAX_RETRIES} attempts: ${err.message}`);
