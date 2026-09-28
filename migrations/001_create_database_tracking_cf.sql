@@ -1,6 +1,9 @@
--- Run this with a privileged MySQL user.
--- Creates the application database if it does not exist.
+-- PostgreSQL database bootstrap.
+-- initDb.js creates DB_NAME idempotently through the postgres database.
+-- For manual setup, run this file while connected to the postgres database
+-- as an administrative role through psql.
 
-CREATE DATABASE IF NOT EXISTS tracking_cf
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
+SELECT 'CREATE DATABASE tracking_cf'
+WHERE NOT EXISTS (
+  SELECT FROM pg_database WHERE datname = 'tracking_cf'
+)\gexec

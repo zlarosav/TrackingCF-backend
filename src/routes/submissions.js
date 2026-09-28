@@ -10,7 +10,7 @@ const FEATURE_ATCODER_SUBMISSIONS = 'feature_atcoder_submissions';
 async function isFeatureEnabled(key) {
   try {
     const [rows] = await db.query(
-      'SELECT value FROM system_metadata WHERE key_name = ? LIMIT 1',
+      'SELECT value FROM system_metadata WHERE key_name = $1 LIMIT 1',
       [key]
     );
 
@@ -83,7 +83,7 @@ router.get('/', async (req, res) => {
     else if (requestedPlatform === 'atcoder') effectivePlatform = atcoderEnabled ? 'atcoder' : 'codeforces';
 
     if (effectivePlatform === 'all') {
-      query += ` AND s.platform IN (${allowedPlatforms.map(() => '?').join(', ')})`;
+      query += ` AND s.platform IN (${allowedPlatforms.map((_, index) => `$${params.length + index + 1}`).join(', ')})`;
       params.push(...allowedPlatforms);
     } else if (effectivePlatform === 'codeforces') {
       query += ` AND s.platform = 'CODEFORCES'`;
@@ -92,12 +92,15 @@ router.get('/', async (req, res) => {
     }
     
     if (dateFrom) {
-      query += ` AND s.submission_time >= ?`;
+      query += ` AND s.submission_time >= $${params.length + 1}`;
       params.push(dateFrom);
     }
 
-    query += ` ORDER BY s.${sortBy} ${order.toUpperCase()}`;
-    query += ` LIMIT ?`;
+    const allowedSortFields = new Set(['submission_time', 'rating', 'created_at']);
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : 'submission_time';
+    const safeOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    query += ` ORDER BY s.${safeSortBy} ${safeOrder}`;
+    query += ` LIMIT $${params.length + 1}`;
     params.push(limit);
 
     const [rows] = await db.query(query, params);

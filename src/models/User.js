@@ -39,7 +39,7 @@ class User {
 
   static async findByHandle(handle) {
     const [rows] = await db.query(
-      'SELECT * FROM users WHERE handle = ?',
+      'SELECT * FROM users WHERE handle = $1',
       [handle]
     );
     return rows[0];
@@ -47,7 +47,7 @@ class User {
 
   static async findById(id) {
     const [rows] = await db.query(
-      'SELECT * FROM users WHERE id = ?',
+      'SELECT * FROM users WHERE id = $1',
       [id]
     );
     return rows[0];
@@ -56,7 +56,8 @@ class User {
   static async create(handle, platformHandles = {}) {
     const [result] = await db.query(
       `INSERT INTO users (handle, leetcode_handle, atcoder_handle, codechef_handle)
-       VALUES (?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
       [
         handle,
         platformHandles.leetcodeHandle || null,
@@ -70,8 +71,8 @@ class User {
   static async updatePlatformHandles(id, platformHandles = {}) {
     await db.query(
       `UPDATE users
-       SET leetcode_handle = ?, atcoder_handle = ?, codechef_handle = ?
-       WHERE id = ?`,
+       SET leetcode_handle = $1, atcoder_handle = $2, codechef_handle = $3
+       WHERE id = $4`,
       [
         platformHandles.leetcodeHandle || null,
         platformHandles.atcoderHandle || null,
@@ -83,7 +84,7 @@ class User {
 
   static async delete(handle) {
     const [result] = await db.query(
-      'DELETE FROM users WHERE handle = ?',
+      'DELETE FROM users WHERE handle = $1',
       [handle]
     );
     return result.affectedRows > 0;
@@ -91,7 +92,7 @@ class User {
 
   static async rename(oldHandle, newHandle) {
     const [result] = await db.query(
-      'UPDATE users SET handle = ? WHERE handle = ?',
+      'UPDATE users SET handle = $1 WHERE handle = $2',
       [newHandle, oldHandle]
     );
     return result.affectedRows > 0;
@@ -99,7 +100,7 @@ class User {
 
   static async updateLastUpdated(id) {
     await db.query(
-      'UPDATE users SET last_updated = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE users SET last_updated = CURRENT_TIMESTAMP WHERE id = $1',
       [id]
     );
   }
@@ -108,15 +109,15 @@ class User {
     const { avatarUrl, rating, rank, lastSubmissionTime } = info;
     await db.query(
       `UPDATE users 
-       SET avatar_url = ?, rating = ?, \`rank\` = ?, last_submission_time = ?
-       WHERE id = ?`,
+       SET avatar_url = $1, rating = $2, rank = $3, last_submission_time = $4
+       WHERE id = $5`,
       [avatarUrl, rating, rank, lastSubmissionTime, id]
     );
   }
 
   static async getLastSubmissionTime(id) {
     const [rows] = await db.query(
-      'SELECT last_submission_time FROM users WHERE id = ?',
+      'SELECT last_submission_time FROM users WHERE id = $1',
       [id]
     );
     return rows[0]?.last_submission_time;
@@ -124,7 +125,7 @@ class User {
 
   static async updateEnabled(id, enabled) {
     await db.query(
-      'UPDATE users SET enabled = ? WHERE id = ?',
+      'UPDATE users SET enabled = $1 WHERE id = $2',
       [enabled, id]
     );
   }
@@ -142,12 +143,12 @@ class User {
     // Update user record with new streak info
     if (streakResult.streak > 0) {
       await db.query(
-        'UPDATE users SET current_streak = ?, last_streak_date = ? WHERE id = ?',
+        'UPDATE users SET current_streak = $1, last_streak_date = $2 WHERE id = $3',
         [streakResult.streak, streakResult.lastDate, userId]
       );
     } else {
        await db.query(
-        'UPDATE users SET current_streak = 0, last_streak_date = NULL WHERE id = ?',
+        'UPDATE users SET current_streak = 0, last_streak_date = NULL WHERE id = $1',
         [userId]
        );
     }
@@ -161,10 +162,9 @@ class User {
   static async updateRatingHistory(userId, history) {
     const query = `
       UPDATE users 
-      SET rating_history = ? 
-      WHERE id = ?
+      SET rating_history = $1
+      WHERE id = $2
     `;
-    // MySQL 8.0 support JSON directly
     await db.query(query, [JSON.stringify(history), userId]);
   }
 
@@ -183,7 +183,7 @@ class User {
     const [submissions] = await db.query(
       `SELECT submission_time
        FROM submissions 
-       WHERE user_id = ? 
+       WHERE user_id = $1
        ORDER BY submission_time DESC`,
       [userId]
     );

@@ -11,7 +11,7 @@ const FEATURE_ATCODER_SUBMISSIONS = 'feature_atcoder_submissions';
 
 async function isFeatureEnabled(key, fallback = false) {
   try {
-    const [rows] = await db.query('SELECT value FROM system_metadata WHERE key_name = ? LIMIT 1', [key]);
+    const [rows] = await db.query('SELECT value FROM system_metadata WHERE key_name = $1 LIMIT 1', [key]);
     if (!rows.length) return fallback;
     const value = String(rows[0].value || '').trim().toLowerCase();
     return value === '1' || value === 'true' || value === 'on' || value === 'enabled';
@@ -54,9 +54,10 @@ function filterValidSubmissions(submissions) {
 function formatSubmission(sub) {
   // Codeforces devuelve timestamps en UTC (Unix timestamp)
   // Guardar directamente en UTC sin conversión
-  // Formatear para MySQL (YYYY-MM-DD HH:MM:SS)
+  // PostgreSQL interpreta este valor como timestamp UTC.
   const submissionTime = DateTime.fromSeconds(sub.creationTimeSeconds, { zone: 'utc' })
-    .toFormat('yyyy-MM-dd HH:mm:ss');
+    .toUTC()
+    .toISO();
 
   return {
     platform: 'CODEFORCES',
@@ -253,8 +254,8 @@ async function updateLastTrackerRun() {
     
     await db.query(
       `INSERT INTO system_metadata (key_name, value, updated_at)
-       VALUES ('last_tracker_run', ?, ?)
-       ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)`,
+       VALUES ('last_tracker_run', $1, $2)
+       ON CONFLICT (key_name) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
       [now, now]
     );
   } catch (err) {

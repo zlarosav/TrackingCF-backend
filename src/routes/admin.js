@@ -24,7 +24,7 @@ function parseFlagValue(value, fallback = false) {
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
-    const [admins] = await db.query('SELECT * FROM admins WHERE username = ?', [username]);
+    const [admins] = await db.query('SELECT * FROM admins WHERE username = $1', [username]);
     if (admins.length === 0) {
       await logAction({ adminId: null, action: 'LOGIN_FAILED', details: { username, reason: 'user_not_found' }, ip: req.ip, userAgent: req.get('User-Agent') });
       return res.status(401).json({ success: false, error: 'Credenciales inválidas' });
@@ -54,7 +54,7 @@ router.use(authMiddleware);
 
 router.get('/feature-flags', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT key_name, value FROM system_metadata WHERE key_name = ?', [FEATURE_ATCODER_SUBMISSIONS]);
+    const [rows] = await db.query('SELECT key_name, value FROM system_metadata WHERE key_name = $1', [FEATURE_ATCODER_SUBMISSIONS]);
     const atcoderRow = rows.find((r) => r.key_name === FEATURE_ATCODER_SUBMISSIONS);
 
     res.json({
@@ -75,8 +75,8 @@ router.put('/feature-flags/atcoder-submissions', async (req, res) => {
   try {
     await db.query(
       `INSERT INTO system_metadata (key_name, value)
-       VALUES (?, ?)
-       ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = CURRENT_TIMESTAMP`,
+       VALUES ($1, $2)
+       ON CONFLICT (key_name) DO UPDATE SET value = EXCLUDED.value`,
       [FEATURE_ATCODER_SUBMISSIONS, enabled ? '1' : '0']
     );
 
@@ -111,10 +111,10 @@ router.get('/users/status-summary', async (req, res) => {
     const [rows] = await db.query(
       `SELECT
          COUNT(*) AS total,
-         SUM(enabled = 1) AS enabled,
-         SUM(enabled = 0) AS disabled,
-         SUM(is_hidden = 1) AS hidden,
-         SUM(is_hidden = 0) AS visible
+         COUNT(*) FILTER (WHERE enabled) AS enabled,
+         COUNT(*) FILTER (WHERE NOT enabled) AS disabled,
+         COUNT(*) FILTER (WHERE is_hidden) AS hidden,
+         COUNT(*) FILTER (WHERE NOT is_hidden) AS visible
        FROM users`
     );
 
@@ -129,7 +129,7 @@ router.get('/users/status-summary', async (req, res) => {
 router.get('/users/disabled', async (req, res) => {
   try {
     const [users] = await db.query(
-      'SELECT id, handle, is_hidden, enabled, last_updated FROM users WHERE enabled = 0 ORDER BY last_updated DESC, handle ASC'
+      'SELECT id, handle, is_hidden, enabled, last_updated FROM users WHERE enabled = FALSE ORDER BY last_updated DESC, handle ASC'
     );
 
     res.json({ success: true, data: users, total: users.length });
@@ -142,7 +142,7 @@ router.get('/users/disabled', async (req, res) => {
 // Bulk re-enable all disabled users
 router.put('/users/enable-all-disabled', async (req, res) => {
   try {
-    const [result] = await db.query('UPDATE users SET enabled = 1 WHERE enabled = 0');
+    const [result] = await db.query('UPDATE users SET enabled = TRUE WHERE enabled = FALSE');
 
     await logAction({
       adminId: req.admin.id,
@@ -216,11 +216,11 @@ router.put('/users/:handle/visibility', async (req, res) => {
   const { handle } = req.params;
   try {
     // Check current status
-    const [rows] = await db.query('SELECT is_hidden FROM users WHERE handle = ?', [handle]);
+    const [rows] = await db.query('SELECT is_hidden FROM users WHERE handle = $1', [handle]);
     if (rows.length === 0) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
 
     const newStatus = !rows[0].is_hidden;
-    await db.query('UPDATE users SET is_hidden = ? WHERE handle = ?', [newStatus, handle]);
+    await db.query('UPDATE users SET is_hidden = $1 WHERE handle = $2', [newStatus, handle]);
 
     await logAction({ 
         adminId: req.admin.id, 
@@ -240,12 +240,12 @@ router.put('/users/:handle/visibility', async (req, res) => {
 router.put('/users/:handle/enable', async (req, res) => {
   const { handle } = req.params;
   try {
-    const [rows] = await db.query('SELECT enabled FROM users WHERE handle = ?', [handle]);
+    const [rows] = await db.query('SELECT enabled FROM users WHERE handle = $1', [handle]);
     if (rows.length === 0) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
 
     const hasExplicitStatus = req.body && Object.prototype.hasOwnProperty.call(req.body, 'enabled');
     const newStatus = hasExplicitStatus ? parseFlagValue(req.body.enabled, false) : !rows[0].enabled;
-    await db.query('UPDATE users SET enabled = ? WHERE handle = ?', [newStatus, handle]);
+    await db.query('UPDATE users SET enabled = $1 WHERE handle = $2', [newStatus, handle]);
 
     await logAction({ 
         adminId: req.admin.id, 
@@ -407,7 +407,7 @@ router.get('/audit-summary', async (req, res) => {
               l.ip_address,
               MAX(l.timestamp) as last_active,
               COUNT(*) as total_requests,
-              GROUP_CONCAT(DISTINCT a.username SEPARATOR ', ') as admin_usernames
+              STRING_AGG(DISTINCT a.username, ', ') as admin_usernames
           FROM audit_logs l
           LEFT JOIN admins a ON l.admin_id = a.id
           WHERE 1=1
@@ -416,7 +416,7 @@ router.get('/audit-summary', async (req, res) => {
       const params = [];
       
       if (action) {
-          query += ` AND l.action = ?`;
+          query += ` AND l.action = $${params.length + 1}`;
           params.push(action);
       }
       
@@ -433,7 +433,7 @@ router.get('/audit-summary', async (req, res) => {
           // Note: JSON_ARRAYAGG might be huge, let's optimize SQL if needed. 
           // Actually let's just do a simpler summary in JS for now or limit the agg.
           // For now, let's not aggregate ALL actions, maybe just unique ones is better in SQL:
-          // GROUP_CONCAT(DISTINCT l.action)
+          // STRING_AGG(DISTINCT l.action, ', ')
           return {
               ip: row.ip_address,
               lastActive: row.last_active,
@@ -477,37 +477,33 @@ router.get('/audit-logs', async (req, res) => {
     let countParams = [];
 
     if (ip) {
-      const condition = ' AND l.ip_address = ?';
-      query += condition;
-      countQuery += condition;
+      query += ` AND l.ip_address = $${params.length + 1}`;
+      countQuery += ` AND l.ip_address = $${countParams.length + 1}`;
       params.push(ip);
       countParams.push(ip);
     }
     if (method) {
       // Frontend still sends 'method' but it maps to 'action'
-      const condition = ' AND l.action = ?';
-      query += condition;
-      countQuery += condition;
+      query += ` AND l.action = $${params.length + 1}`;
+      countQuery += ` AND l.action = $${countParams.length + 1}`;
       params.push(method);
       countParams.push(method);
     }
     
     if (startDate) {
-      const condition = ' AND l.timestamp >= ?';
-      query += condition;
-      countQuery += condition;
+      query += ` AND l.timestamp >= $${params.length + 1}`;
+      countQuery += ` AND l.timestamp >= $${countParams.length + 1}`;
       params.push(startDate); 
       countParams.push(startDate);
     }
     if (endDate) {
-      const condition = ' AND l.timestamp <= ?';
-      query += condition;
-      countQuery += condition;
+      query += ` AND l.timestamp <= $${params.length + 1}`;
+      countQuery += ` AND l.timestamp <= $${countParams.length + 1}`;
       params.push(endDate + ' 23:59:59'); 
       countParams.push(endDate + ' 23:59:59');
     }
 
-    query += ' ORDER BY l.timestamp DESC LIMIT ? OFFSET ?';
+    query += ` ORDER BY l.timestamp DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const [logs] = await db.query(query, params);
@@ -543,7 +539,7 @@ router.post('/backfill', async (req, res) => {
     const { DateTime } = require('luxon');
     const { filterValidSubmissions, formatSubmission } = require('../services/trackerService');
 
-    const [users] = await db.query('SELECT id, handle FROM users WHERE enabled = 1');
+    const [users] = await db.query('SELECT id, handle FROM users WHERE enabled = TRUE');
     const results = [];
 
     for (const user of users) {
@@ -564,7 +560,7 @@ router.post('/backfill', async (req, res) => {
         await calculateUserStats(user.id);
 
         if (newCount > 0) {
-          await db.query('UPDATE users SET last_submission_time = ?, last_updated = NOW() WHERE id = ?', [formatted[0].submissionTime, user.id]);
+          await db.query('UPDATE users SET last_submission_time = $1, last_updated = CURRENT_TIMESTAMP WHERE id = $2', [formatted[0].submissionTime, user.id]);
         }
 
         results.push({ handle: user.handle, newSubmissions: newCount });

@@ -1,5 +1,5 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
-const mysql = require('mysql2/promise');
+const { Client } = require('pg');
 const readline = require('readline');
 
 async function deleteDatabase() {
@@ -27,18 +27,25 @@ async function deleteDatabase() {
       });
     });
 
-    connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 3306,
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      charset: 'utf8mb4'
-    });
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(dbName)) {
+      throw new Error(`Nombre de base de datos inválido: ${dbName}`);
+    }
 
-    console.log('\n✅ Conectado a MySQL');
+    connection = new Client({
+      host: process.env.DB_HOST || 'localhost',
+      port: Number(process.env.DB_PORT || 5432),
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_ADMIN_DATABASE || 'postgres',
+      options: '-c timezone=UTC',
+      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+    });
+    await connection.connect();
+
+    console.log('\n✅ Conectado a PostgreSQL');
 
     // Drop database
-    await connection.query(`DROP DATABASE IF EXISTS ${dbName}`);
+    await connection.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
     console.log(`✅ Base de datos '${dbName}' eliminada correctamente`);
 
     await connection.end();

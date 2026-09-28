@@ -27,7 +27,7 @@ async function renameUser() {
 
     // Verificar que existe en DB
     const [users] = await db.query(
-      'SELECT id, handle FROM users WHERE handle = ?',
+      'SELECT id, handle FROM users WHERE handle = $1',
       [currentHandle]
     );
 
@@ -74,7 +74,7 @@ async function renameUser() {
 
     // Actualizar handle en DB
     await db.query(
-      'UPDATE users SET handle = ? WHERE id = ?',
+      'UPDATE users SET handle = $1 WHERE id = $2',
       [newHandle, userId]
     );
 

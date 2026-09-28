@@ -27,7 +27,7 @@ function isFlagOn(value) {
 router.get('/', async (req, res) => {
     try {
         const [rows] = await db.query(
-            "SELECT key_name, value FROM system_metadata WHERE key_name IN ('last_tracker_run', 'last_contest_update', ?)",
+            "SELECT key_name, value FROM system_metadata WHERE key_name IN ('last_tracker_run', 'last_contest_update', $1)",
             [FEATURE_ATCODER_SUBMISSIONS]
         );
 

@@ -92,7 +92,7 @@ async function createTrackedUser({
       lastSubmissionTime: null,
     });
 
-    await db.query('INSERT INTO user_stats (user_id) VALUES (?)', [userId]);
+    await db.query('INSERT INTO user_stats (user_id) VALUES ($1)', [userId]);
     await User.updatePlatformHandles(userId, platformHandles);
 
     try {
@@ -112,7 +112,7 @@ async function createTrackedUser({
     const streakResult = await User.intelligentStreakCalculation(userId);
     if (streakResult.streak > 0) {
       await db.query(
-        'UPDATE users SET current_streak = ?, last_streak_date = ? WHERE id = ?',
+        'UPDATE users SET current_streak = $1, last_streak_date = $2 WHERE id = $3',
         [streakResult.streak, streakResult.lastDate, userId]
       );
     }

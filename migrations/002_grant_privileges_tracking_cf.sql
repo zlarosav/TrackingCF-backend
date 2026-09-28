@@ -1,7 +1,12 @@
--- Run this with an admin user.
--- Adjust user/host if you do not use root@%.
+-- Run as an administrative PostgreSQL role after connecting to tracking_cf.
+-- Replace trackingcf_app with the role used by DB_USER when deploying.
 
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP
-ON tracking_cf.* TO 'root'@'%';
+GRANT CONNECT ON DATABASE tracking_cf TO trackingcf_app;
+GRANT USAGE ON SCHEMA public TO trackingcf_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO trackingcf_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO trackingcf_app;
 
-FLUSH PRIVILEGES;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO trackingcf_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO trackingcf_app;

@@ -27,7 +27,7 @@ async function createAdmin({ username, password }) {
     throw new ProvisioningError('La contraseña admin es requerida.', 'ADMIN_PASSWORD_REQUIRED');
   }
 
-  const [existing] = await db.query('SELECT id FROM admins WHERE username = ?', [cleanUsername]);
+  const [existing] = await db.query('SELECT id FROM admins WHERE username = $1', [cleanUsername]);
   if (existing.length > 0) {
     throw new ProvisioningError(`El administrador "${cleanUsername}" ya existe.`, 'ADMIN_EXISTS', 409);
   }
@@ -35,7 +35,7 @@ async function createAdmin({ username, password }) {
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(cleanPassword, salt);
   const [result] = await db.query(
-    'INSERT INTO admins (username, password_hash) VALUES (?, ?)',
+    'INSERT INTO admins (username, password_hash) VALUES ($1, $2) RETURNING id',
     [cleanUsername, passwordHash]
   );
 

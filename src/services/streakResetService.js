@@ -32,7 +32,7 @@ async function resetExpiredStreaks() {
       if (!user.last_streak_date) {
         // Shouldn't happen, but handle it
         await db.query(
-          'UPDATE users SET current_streak = 0, last_streak_date = NULL WHERE id = ?',
+          'UPDATE users SET current_streak = 0, last_streak_date = NULL WHERE id = $1',
           [user.id]
         );
         console.log(`⚠️  ${user.handle}: racha reseteada (sin last_streak_date)`);
@@ -58,7 +58,7 @@ async function resetExpiredStreaks() {
       // If more than 1 day has passed since last streak date, reset
       if (daysSince > 1) {
         await db.query(
-          'UPDATE users SET current_streak = 0, last_streak_date = NULL WHERE id = ?',
+          'UPDATE users SET current_streak = 0, last_streak_date = NULL WHERE id = $1',
           [user.id]
         );
         console.log(`❌ ${user.handle}: racha ${user.current_streak} → 0 (${daysSince} días sin activity)`);
@@ -111,7 +111,7 @@ async function updateUserAvatars() {
         // Check if avatar changed
         if (newAvatarUrl && newAvatarUrl !== user.avatar_url) {
           await db.query(
-            'UPDATE users SET avatar_url = ? WHERE id = ?',
+            'UPDATE users SET avatar_url = $1 WHERE id = $2',
             [newAvatarUrl, user.id]
           );
           console.log(`✅ ${user.handle}: avatar actualizado`);

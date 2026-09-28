@@ -12,21 +12,20 @@ const updateContests = async () => {
     // Helper for DB Insert
     const upsertContest = async (contest) => {
         const query = `
-            INSERT INTO contests (id, name, type, phase, frozen, durationSeconds, startTimeSeconds, relativeTimeSeconds, platform)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-            name = VALUES(name),
-            type = VALUES(type),
-            phase = VALUES(phase),
-            frozen = VALUES(frozen),
-            durationSeconds = VALUES(durationSeconds),
-            startTimeSeconds = VALUES(startTimeSeconds),
-            relativeTimeSeconds = VALUES(relativeTimeSeconds),
-            platform = VALUES(platform),
-            updated_at = NOW()
+            INSERT INTO contests (id, name, type, phase, frozen, "durationSeconds", "startTimeSeconds", "relativeTimeSeconds", platform)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            type = EXCLUDED.type,
+            phase = EXCLUDED.phase,
+            frozen = EXCLUDED.frozen,
+            "durationSeconds" = EXCLUDED."durationSeconds",
+            "startTimeSeconds" = EXCLUDED."startTimeSeconds",
+            "relativeTimeSeconds" = EXCLUDED."relativeTimeSeconds",
+            platform = EXCLUDED.platform
         `;
         
-        // MySQL INT range: -2147483648 to 2147483647
+        // PostgreSQL INTEGER range: -2147483648 to 2147483647
         const MAX_INT = 2147483647;
         const MIN_INT = -2147483648;
         
@@ -39,7 +38,7 @@ const updateContests = async () => {
             contest.name,
             contest.type,
             contest.phase,
-            contest.frozen ? 1 : 0,
+            Boolean(contest.frozen),
             safeDuration,
             safeStart,
             safeRelative,
@@ -123,8 +122,8 @@ const updateContests = async () => {
     try {
         await db.query(`
             INSERT INTO system_metadata (key_name, value) 
-            VALUES ('last_contest_update', NOW()) 
-            ON DUPLICATE KEY UPDATE value = NOW()
+            VALUES ('last_contest_update', TO_CHAR(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS'))
+            ON CONFLICT (key_name) DO UPDATE SET value = EXCLUDED.value
         `);
     } catch (error) {
         console.error('Error updating metadata:', error.message);
@@ -136,8 +135,8 @@ const updateContests = async () => {
 const getUpcomingContests = async () => {
     try {
         const query = `
-            SELECT * FROM contests 
-            ORDER BY startTimeSeconds ASC
+            SELECT * FROM contests
+            ORDER BY "startTimeSeconds" ASC
         `;
         const [rows] = await db.query(query);
         
@@ -167,8 +166,8 @@ const getUpcomingContests = async () => {
                 u.last_streak_date
              FROM submissions s
              INNER JOIN users u ON u.id = s.user_id
-             WHERE s.contest_id = ?
-               AND s.platform = ?
+             WHERE s.contest_id = $1
+               AND s.platform = $2
                AND u.enabled = TRUE
                AND u.is_hidden = FALSE
              ORDER BY u.rating DESC, u.handle ASC`,
@@ -190,15 +189,15 @@ const getRecentContestsWithParticipants = async (limit = 25) => {
     const [contests] = await db.query(
         `SELECT c.*
          FROM contests c
-         WHERE (c.startTimeSeconds + c.durationSeconds) <= UNIX_TIMESTAMP()
+         WHERE (c."startTimeSeconds" + c."durationSeconds") <= EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
            AND EXISTS (
                SELECT 1 FROM submissions s
                INNER JOIN users u ON u.id = s.user_id
                WHERE s.contest_id = c.id AND s.platform = c.platform
                  AND u.enabled = TRUE AND u.is_hidden = FALSE
            )
-         ORDER BY c.startTimeSeconds DESC
-         LIMIT ?`,
+         ORDER BY c."startTimeSeconds" DESC
+         LIMIT $1`,
         [safeLimit]
     );
 
@@ -206,7 +205,10 @@ const getRecentContestsWithParticipants = async (limit = 25) => {
 
     // Query B: participantes de esos contests en una sola consulta.
     const pairs = contests.map(c => [String(c.id), c.platform]);
-    const placeholders = pairs.map(() => '(?, ?)').join(', ');
+    let parameterIndex = 1;
+    const placeholders = pairs
+        .map(() => `($${parameterIndex++}, $${parameterIndex++})`)
+        .join(', ');
     const [rows] = await db.query(
         `SELECT s.contest_id, s.platform,
                 u.id, u.handle, u.avatar_url, u.rating, u.rank, u.current_streak, u.last_streak_date

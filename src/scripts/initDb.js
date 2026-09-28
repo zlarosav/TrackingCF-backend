@@ -1,72 +1,68 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2/promise');
+const { Client } = require('pg');
+
+function getPgConfig(database) {
+  return {
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT || 5432),
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+    database,
+    options: '-c timezone=UTC',
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+  };
+}
+
+function quoteIdentifier(identifier) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
+    throw new Error(`Nombre de base de datos inválido: ${identifier}`);
+  }
+  return `"${identifier}"`;
+}
 
 async function initDatabase() {
+  let adminConnection;
   let connection;
 
   try {
     console.log('🔧 Inicializando base de datos...\n');
 
-    // Primero conectarse SIN especificar base de datos
-    connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 3306,
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      charset: 'utf8mb4'
-    });
-
-    console.log('✅ Conectado a MySQL');
-
     const dbName = process.env.DB_NAME || 'tracking_cf';
+    const quotedDbName = quoteIdentifier(dbName);
 
-    // Crear base de datos si no existe
-    await connection.query(`CREATE DATABASE IF NOT EXISTS ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    // PostgreSQL crea las bases desde una conexión administrativa a postgres.
+    adminConnection = new Client(getPgConfig(process.env.DB_ADMIN_DATABASE || 'postgres'));
+    await adminConnection.connect();
+    console.log('✅ Conectado a PostgreSQL');
+
+    const { rows: databases } = await adminConnection.query(
+      'SELECT 1 FROM pg_database WHERE datname = $1',
+      [dbName]
+    );
+    if (databases.length === 0) {
+      await adminConnection.query(`CREATE DATABASE ${quotedDbName}`);
+    }
+    await adminConnection.end();
+    adminConnection = null;
     console.log(`✅ Base de datos '${dbName}' creada/verificada`);
 
-    // Seleccionar la base de datos
-    await connection.query(`USE ${dbName}`);
-    console.log(`✅ Base de datos seleccionada\n`);
-
-    // Leer el schema
+    // Ejecutar el esquema completo. No se divide por ';' porque PostgreSQL
+    // usa funciones PL/pgSQL con cuerpos dollar-quoted.
     const schemaPath = path.join(__dirname, '../../schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf8');
+    connection = new Client(getPgConfig(dbName));
+    await connection.connect();
+    await connection.query(schema);
 
-    // Eliminar comentarios y dividir por statements
-    const cleanedSchema = schema
-      .split('\n')
-      .filter(line => !line.trim().startsWith('--'))
-      .join('\n');
+    console.log('\n✅ Base de datos PostgreSQL inicializada correctamente');
 
-    const statements = cleanedSchema
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
-      .filter(s => !s.includes('CREATE DATABASE') && !s.includes('USE '));
-
-    console.log(`📋 Ejecutando ${statements.length} statements...\n`);
-
-    for (const statement of statements) {
-      try {
-        await connection.query(statement);
-
-        if (statement.includes('CREATE TABLE')) {
-          const match = statement.match(/CREATE TABLE.*?(?:IF NOT EXISTS)?\s+`?(\w+)`?/i);
-          const tableName = match ? match[1] : 'desconocida';
-          console.log(`✅ Tabla '${tableName}' creada`);
-        }
-      } catch (err) {
-        console.error(`❌ Error ejecutando statement:`, err.message);
-        console.error(`Statement: ${statement.substring(0, 100)}...`);
-      }
-    }
-
-    console.log('\n✅ Base de datos inicializada correctamente');
-
-    return { dbName, statements: statements.length };
+    return { dbName };
   } finally {
+    if (adminConnection) {
+      await adminConnection.end();
+    }
     if (connection) {
       await connection.end();
     }

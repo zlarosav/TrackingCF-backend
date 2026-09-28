@@ -1,5 +1,5 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
-const mysql = require('mysql2/promise');
+const { Client } = require('pg');
 const readline = require('readline');
 
 async function deleteAdmin() {
@@ -29,18 +29,20 @@ async function deleteAdmin() {
       });
     });
 
-    connection = await mysql.createConnection({
+    connection = new Client({
       host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 3306,
-      user: process.env.DB_USER || 'root',
+      port: Number(process.env.DB_PORT || 5432),
+      user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_NAME || 'tracking_cf',
-      charset: 'utf8mb4'
+      options: '-c timezone=UTC',
+      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
     });
+    await connection.connect();
 
-    const [result] = await connection.query('DELETE FROM admins WHERE username = ?', [username]);
+    const result = await connection.query('DELETE FROM admins WHERE username = $1', [username]);
 
-    if (result.affectedRows === 0) {
+    if (result.rowCount === 0) {
       console.log(`❌ No se encontró el administrador '${username}'`);
     } else {
       console.log(`✅ Administrador '${username}' eliminado exitosamente`);

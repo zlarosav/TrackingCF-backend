@@ -8,7 +8,7 @@ API REST para trackear y visualizar la actividad de usuarios en Codeforces. Dise
 - **Sistema de rachas** (streaks) con cálculo inteligente y reset automático
 - **Sistema de puntuación** basado en dificultad de problemas resueltos
 - **API REST** para consultar usuarios, submissions y estadísticas
-- **Base de datos MySQL** para almacenamiento persistente
+- **Base de datos PostgreSQL** para almacenamiento persistente
 - **2 Cron jobs inteligentes:**
   - Tracking cada 30 min (con descanso 3-8 AM)
   - Reset de rachas diario a las 00:00
@@ -17,7 +17,7 @@ API REST para trackear y visualizar la actividad de usuarios en Codeforces. Dise
 ## 📋 Requisitos Previos
 
 - **Node.js** 16+ y npm
-- **MySQL** 8.0+
+- **PostgreSQL** 13+
 - **Credenciales de API de Codeforces** ([obtenerlas aquí](https://codeforces.com/settings/api))
 
 ## 🚀 Instalación
@@ -29,7 +29,7 @@ git clone https://github.com/zlarosav/TrackingCF-backend.git
 cd TrackingCF-backend
 npm install
 cp .env.example .env
-# Edita .env con MySQL, Codeforces API y JWT_SECRET
+# Edita .env con PostgreSQL, Codeforces API y JWT_SECRET
 npm run setup
 npm start
 ```
@@ -69,12 +69,14 @@ Edita el archivo `.env` con tus configuraciones.:
 PORT=3001
 NODE_ENV=development
 
-# MySQL Database
+# PostgreSQL Database
 DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
+DB_PORT=5432
+DB_USER=postgres
 DB_PASSWORD=tu_contraseña
 DB_NAME=tracking_cf
+DB_ADMIN_DATABASE=postgres
+DB_SSL=false
 
 # Codeforces API Credentials (REQUERIDAS)
 API_KEY_CF=tu_api_key
@@ -241,8 +243,8 @@ GET /api/submissions/:handle/stats      # Stats por periodo
 ## 🛠️ Stack Tecnológico
 
 - **Framework:** Express.js
-- **Base de datos:** MySQL 8.0+
-- **ORM/Query:** mysql2 (raw queries)
+- **Base de datos:** PostgreSQL 13+
+- **ORM/Query:** pg (raw queries)
 - **Cron Jobs:** node-cron
 - **HTTP Client:** axios
 - **Timezone:** Luxon (respeta `.env TZ`)
@@ -286,7 +288,7 @@ El tracker detecta automáticamente handles que ya no existen:
 ### Camino recomendado para forks open source
 
 1. Haz fork del backend y frontend.
-2. Crea una base de datos MySQL en Railway, Render, PlanetScale, Aiven o tu proveedor preferido.
+2. Crea una base de datos PostgreSQL en Railway, Render, Aiven o tu proveedor preferido.
 3. Despliega el backend en Railway/Render como servicio Node.js.
 4. Configura las variables de entorno del backend:
    - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
@@ -326,7 +328,7 @@ Este backend está diseñado para desplegarse en:
 ### Checklist de producción
 
 - Backend responde en `GET /api/health`.
-- Base de datos MySQL acepta conexiones desde el backend.
+- Base de datos PostgreSQL acepta conexiones desde el backend.
 - `npm run setup` se ejecutó al menos una vez.
 - Existe al menos un admin en `/consola`.
 - El frontend tiene `NEXT_PUBLIC_API_URL` apuntando al backend con `/api`.

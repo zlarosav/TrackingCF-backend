@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
       }
       
       if (dateFrom) {
-        dateFilter = 'AND s.submission_time >= ?';
+        dateFilter = `AND s.submission_time >= $${params.length + 1}`;
         params.push(dateFrom);
       }
     }
@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
         u.handle,
         u.avatar_url,
         u.rating,
-        u.\`rank\`,
+        u.rank,
         u.last_updated,
         u.current_streak,
         u.last_streak_date,
@@ -66,16 +66,10 @@ router.get('/', async (req, res) => {
         ) as total_score
       FROM users u
       LEFT JOIN submissions s ON u.id = s.user_id
-      WHERE u.enabled = TRUE AND u.is_hidden = FALSE ${dateFilter ? `AND ${dateFilter.substring(4)}` : ''}
-      GROUP BY u.id, u.handle, u.avatar_url, u.rating, u.\`rank\`, u.last_updated, u.current_streak, u.last_streak_date
+      WHERE u.enabled = TRUE AND u.is_hidden = FALSE ${dateFilter}
+      GROUP BY u.id, u.handle, u.avatar_url, u.rating, u.rank, u.last_updated, u.current_streak, u.last_streak_date
       ORDER BY total_score DESC, u.handle ASC
     `;
-
-    // Adjust params if dateFilter was added
-    if (dateFilter) {
-      // The dateFrom parameter is already in the 'params' array.
-      // No need to add it again here.
-    }
 
     const [rows] = await db.query(query, params);
 
@@ -172,7 +166,7 @@ router.get('/:handle/rating-history', async (req, res) => {
     const { getUserRatingHistory } = require('../services/codeforcesService');
     
     // Validar existencia primero y obtener historial cached
-    const [rows] = await require('../config/database').query('SELECT rating_history FROM users WHERE handle = ?', [handle]);
+    const [rows] = await require('../config/database').query('SELECT rating_history FROM users WHERE handle = $1', [handle]);
     
     if (rows.length === 0) {
        return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
@@ -201,9 +195,9 @@ router.get('/:handle/card', async (req, res) => {
     const { getRecentSubmissionCounts } = require('../services/statsService');
 
     const [rows] = await db.query(`
-      SELECT u.id, u.handle, u.avatar_url, u.rating, u.\`rank\`, u.current_streak, u.last_streak_date
+      SELECT u.id, u.handle, u.avatar_url, u.rating, u.rank, u.current_streak, u.last_streak_date
       FROM users u
-      WHERE u.handle = ? AND u.enabled = TRUE AND u.is_hidden = FALSE
+      WHERE u.handle = $1 AND u.enabled = TRUE AND u.is_hidden = FALSE
     `, [handle]);
 
     if (!rows.length) {

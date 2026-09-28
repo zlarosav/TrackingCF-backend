@@ -26,7 +26,7 @@ async function toggleUser() {
 
     // Verificar que existe en DB
     const [users] = await db.query(
-      'SELECT id, handle, enabled FROM users WHERE handle = ?',
+      'SELECT id, handle, enabled FROM users WHERE handle = $1',
       [handle]
     );
 
@@ -54,7 +54,7 @@ async function toggleUser() {
     // Toggle enabled
     const newEnabledValue = !user.enabled;
     await db.query(
-      'UPDATE users SET enabled = ? WHERE id = ?',
+      'UPDATE users SET enabled = $1 WHERE id = $2',
       [newEnabledValue, user.id]
     );
 

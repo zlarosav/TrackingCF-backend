@@ -15,7 +15,7 @@ async function logAction({ adminId, action, details, ip, userAgent }) {
     
     await db.query(
       `INSERT INTO audit_logs (admin_id, action, details, ip_address, user_agent) 
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5)`,
       [adminId || null, action, detailsJson, ip, userAgent]
     );
   } catch (err) {

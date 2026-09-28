@@ -66,7 +66,7 @@ async function getEnrichedRatingHistory(handle) {
       
       for (const chunk of chunks) {
           if (!chunk.length) continue;
-          const placeholders = chunk.map(() => '?').join(',');
+          const placeholders = chunk.map((_, index) => `$${index + 1}`).join(',');
           const [rows] = await db.query(
               `SELECT id, problems FROM contests WHERE id IN (${placeholders})`,
               chunk
@@ -104,11 +104,11 @@ async function getEnrichedRatingHistory(handle) {
                   const startTime = contestInfo ? contestInfo.ratingUpdateTimeSeconds : 0; 
 
                   const query = `
-                      INSERT INTO contests (id, name, startTimeSeconds, problems, platform, created_at)
-                      VALUES (?, ?, ?, ?, 'CODEFORCES', NOW())
-                      ON DUPLICATE KEY UPDATE 
-                          problems = VALUES(problems),
-                          updated_at = NOW()
+                      INSERT INTO contests (id, name, "startTimeSeconds", problems, platform, created_at)
+                      VALUES ($1, $2, $3, $4, 'CODEFORCES', CURRENT_TIMESTAMP)
+                      ON CONFLICT (id) DO UPDATE SET
+                          problems = EXCLUDED.problems,
+                          updated_at = CURRENT_TIMESTAMP
                   `;
 
                   await db.query(query, [id, name, startTime, JSON.stringify(problems)]);

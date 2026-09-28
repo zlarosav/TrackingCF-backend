@@ -30,7 +30,7 @@ function checkRateLimit(key) {
 async function buildSystemPrompt(handle) {
   try {
     // Fetch stats
-    const [userRows] = await db.query('SELECT * FROM users WHERE handle = ?', [handle]);
+    const [userRows] = await db.query('SELECT * FROM users WHERE handle = $1', [handle]);
     const user = userRows[0];
     
     if (!user) return "Eres un asistente de programación competitiva. El usuario no existe en nuestra base de datos.";
@@ -73,7 +73,7 @@ async function buildSystemPrompt(handle) {
       
       CONTEXTO DE LA PLATAFORMA (TrackingCF):
       - Creador: zlarosav
-      - Tecnologías: Next.js, Node.js, MySQL, TailwindCSS, Codeforces API, Gemini AI.
+      - Tecnologías: Next.js, Node.js, PostgreSQL, TailwindCSS, Codeforces API, Gemini AI.
       - Lógica de Puntos (Score):
         * Sin rating / 800-900: +1 punto
         * 1000: +2 puntos
@@ -129,13 +129,13 @@ async function processMessage(sessionId, handle, userMessage, clientIp) {
   // 1. Save User Message
   await db.query(`
     INSERT INTO chat_messages (session_id, user_handle, role, message)
-    VALUES (?, ?, 'user', ?)
+    VALUES ($1, $2, 'user', $3)
   `, [sessionId, handle, userMessage]);
 
   // 2. Load History (Last 20 messages for context)
   const [rows] = await db.query(`
     SELECT role, message FROM chat_messages 
-    WHERE session_id = ? 
+    WHERE session_id = $1
     ORDER BY timestamp ASC 
     LIMIT 20
   `, [sessionId]);
@@ -159,7 +159,7 @@ async function processMessage(sessionId, handle, userMessage, clientIp) {
   // 4. Save AI Response
   await db.query(`
     INSERT INTO chat_messages (session_id, user_handle, role, message)
-    VALUES (?, ?, 'model', ?)
+    VALUES ($1, $2, 'model', $3)
   `, [sessionId, handle, aiResponseText]);
 
   return aiResponseText;
@@ -168,7 +168,7 @@ async function processMessage(sessionId, handle, userMessage, clientIp) {
 async function getHistory(sessionId) {
   const [rows] = await db.query(`
     SELECT role, message, timestamp FROM chat_messages 
-    WHERE session_id = ? 
+    WHERE session_id = $1
     ORDER BY timestamp ASC
   `, [sessionId]);
   
@@ -176,7 +176,7 @@ async function getHistory(sessionId) {
 }
 
 async function clearHistory(sessionId) {
-  await db.query(`DELETE FROM chat_messages WHERE session_id = ?`, [sessionId]);
+  await db.query(`DELETE FROM chat_messages WHERE session_id = $1`, [sessionId]);
   return true;
 }
 

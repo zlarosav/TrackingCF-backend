@@ -7,13 +7,14 @@ class Submission {
     const [result] = await db.query(
       `INSERT INTO submissions 
        (user_id, platform, contest_id, problem_index, problem_name, rating, tags, submission_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         platform = VALUES(platform),
-         problem_name = VALUES(problem_name),
-         rating = VALUES(rating),
-         tags = VALUES(tags),
-         submission_time = GREATEST(submission_time, VALUES(submission_time))`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (user_id, contest_id, problem_index) DO UPDATE SET
+         platform = EXCLUDED.platform,
+         problem_name = EXCLUDED.problem_name,
+         rating = EXCLUDED.rating,
+         tags = EXCLUDED.tags,
+         submission_time = GREATEST(submissions.submission_time, EXCLUDED.submission_time)
+       RETURNING id`,
       [userId, platform, contestId, problemIndex, problemName, rating, JSON.stringify(tags), submissionTime]
     );
     
@@ -34,19 +35,22 @@ class Submission {
       sub.submissionTime
     ]);
 
-    const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+    let parameterIndex = 1;
+    const placeholders = values
+      .map(row => `(${row.map(() => `$${parameterIndex++}`).join(', ')})`)
+      .join(', ');
     const flatValues = values.flat();
 
     const [result] = await db.query(
       `INSERT INTO submissions 
        (user_id, platform, contest_id, problem_index, problem_name, rating, tags, submission_time)
        VALUES ${placeholders}
-       ON DUPLICATE KEY UPDATE
-         platform = VALUES(platform),
-         problem_name = VALUES(problem_name),
-         rating = VALUES(rating),
-         tags = VALUES(tags),
-         submission_time = GREATEST(submission_time, VALUES(submission_time))`,
+       ON CONFLICT (user_id, contest_id, problem_index) DO UPDATE SET
+         platform = EXCLUDED.platform,
+         problem_name = EXCLUDED.problem_name,
+         rating = EXCLUDED.rating,
+         tags = EXCLUDED.tags,
+         submission_time = GREATEST(submissions.submission_time, EXCLUDED.submission_time)`,
       flatValues
     );
 
@@ -68,28 +72,28 @@ class Submission {
   }
 
   static async findByUser(userId, filters = {}) {
-    let query = 'SELECT * FROM submissions WHERE user_id = ?';
+    let query = 'SELECT * FROM submissions WHERE user_id = $1';
     const params = [userId];
 
     // Filtros
     if (filters.ratingMin !== undefined) {
-      query += ' AND (rating >= ? OR rating IS NULL)';
       params.push(filters.ratingMin);
+      query += ` AND (rating >= $${params.length} OR rating IS NULL)`;
     }
 
     if (filters.ratingMax !== undefined) {
-      query += ' AND (rating <= ? OR rating IS NULL)';
       params.push(filters.ratingMax);
+      query += ` AND (rating <= $${params.length} OR rating IS NULL)`;
     }
 
     if (filters.dateFrom) {
-      query += ' AND submission_time >= ?';
       params.push(filters.dateFrom);
+      query += ` AND submission_time >= $${params.length}`;
     }
 
     if (filters.dateTo) {
-      query += ' AND submission_time <= ?';
       params.push(filters.dateTo);
+      query += ` AND submission_time <= $${params.length}`;
     }
 
     if (filters.noRating === 'true') {
@@ -109,8 +113,8 @@ class Submission {
     // Paginación
     const limit = parseInt(filters.limit) || 100;
     const offset = parseInt(filters.offset) || 0;
-    query += ' LIMIT ? OFFSET ?';
     params.push(limit, offset);
+    query += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
     const [rows] = await db.query(query, params);
     
@@ -136,27 +140,27 @@ class Submission {
   }
 
   static async countByUser(userId, filters = {}) {
-    let query = 'SELECT COUNT(*) as total FROM submissions WHERE user_id = ?';
+    let query = 'SELECT COUNT(*) as total FROM submissions WHERE user_id = $1';
     const params = [userId];
 
     if (filters.ratingMin !== undefined) {
-      query += ' AND (rating >= ? OR rating IS NULL)';
       params.push(filters.ratingMin);
+      query += ` AND (rating >= $${params.length} OR rating IS NULL)`;
     }
 
     if (filters.ratingMax !== undefined) {
-      query += ' AND (rating <= ? OR rating IS NULL)';
       params.push(filters.ratingMax);
+      query += ` AND (rating <= $${params.length} OR rating IS NULL)`;
     }
 
     if (filters.dateFrom) {
-      query += ' AND submission_time >= ?';
       params.push(filters.dateFrom);
+      query += ` AND submission_time >= $${params.length}`;
     }
 
     if (filters.dateTo) {
-      query += ' AND submission_time <= ?';
       params.push(filters.dateTo);
+      query += ` AND submission_time <= $${params.length}`;
     }
 
     if (filters.noRating === 'true') {
@@ -170,9 +174,9 @@ class Submission {
   static async findLatestByUser(userId, limit = 10) {
     const [rows] = await db.query(
       `SELECT * FROM submissions 
-       WHERE user_id = ? 
+       WHERE user_id = $1
        ORDER BY submission_time DESC 
-       LIMIT ?`,
+       LIMIT $2`,
       [userId, limit]
     );
 
@@ -198,7 +202,7 @@ class Submission {
 
   static async checkExists(userId, contestId, problemIndex) {
     const [rows] = await db.query(
-      'SELECT id FROM submissions WHERE user_id = ? AND contest_id = ? AND problem_index = ?',
+      'SELECT id FROM submissions WHERE user_id = $1 AND contest_id = $2 AND problem_index = $3',
       [userId, contestId, problemIndex]
     );
     return rows.length > 0;
@@ -208,7 +212,7 @@ class Submission {
     const [rows] = await db.query(
       `SELECT MAX(submission_time) AS last_submission_time
        FROM submissions
-       WHERE user_id = ? AND platform = ?`,
+       WHERE user_id = $1 AND platform = $2`,
       [userId, platform]
     );
 

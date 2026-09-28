@@ -19,7 +19,7 @@ async function main() {
   console.log('🚀 Iniciando backfill de submissions desde 2024...\n');
 
   // Obtener todos los usuarios habilitados
-  const [users] = await db.query('SELECT id, handle, leetcode_handle, atcoder_handle, codechef_handle FROM users WHERE enabled = 1');
+  const [users] = await db.query('SELECT id, handle, leetcode_handle, atcoder_handle, codechef_handle FROM users WHERE enabled = TRUE');
   console.log(`📋 ${users.length} usuarios habilitados encontrados\n`);
 
   let totalNew = 0;
@@ -55,7 +55,7 @@ async function main() {
 
       // 3. Formatear para la BD
       const formatted = filtered.map(sub => {
-        const time = DateTime.fromSeconds(sub.creationTimeSeconds, { zone: 'utc' }).toFormat('yyyy-MM-dd HH:mm:ss');
+        const time = DateTime.fromSeconds(sub.creationTimeSeconds, { zone: 'utc' }).toUTC().toISO();
         return {
           platform: 'CODEFORCES',
           contest_id: sub.problem.contestId,
@@ -82,11 +82,11 @@ async function main() {
       if (newCount > 0) {
         const latest = formatted[0];
         await db.query(
-          `UPDATE users SET last_submission_time = ? WHERE id = ?`,
+          `UPDATE users SET last_submission_time = $1 WHERE id = $2`,
           [latest.submission_time, user.id]
         );
         await db.query(
-          `UPDATE users SET last_updated = NOW() WHERE id = ?`,
+          `UPDATE users SET last_updated = CURRENT_TIMESTAMP WHERE id = $1`,
           [user.id]
         );
       }

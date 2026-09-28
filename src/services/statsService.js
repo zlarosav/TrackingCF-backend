@@ -37,7 +37,7 @@ async function calculateUserStats(userId) {
   try {
     // Obtener todas las submissions del usuario
     const [submissions] = await db.query(
-      'SELECT rating FROM submissions WHERE user_id = ?',
+      'SELECT rating FROM submissions WHERE user_id = $1',
       [userId]
     );
 
@@ -80,15 +80,14 @@ async function calculateUserStats(userId) {
     await db.query(
       `INSERT INTO user_stats 
        (user_id, total_score, count_no_rating, count_800_900, count_1000, count_1100, count_1200_plus)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         total_score = VALUES(total_score),
-         count_no_rating = VALUES(count_no_rating),
-         count_800_900 = VALUES(count_800_900),
-         count_1000 = VALUES(count_1000),
-         count_1100 = VALUES(count_1100),
-         count_1200_plus = VALUES(count_1200_plus),
-         last_calculated = CURRENT_TIMESTAMP`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET
+         total_score = EXCLUDED.total_score,
+         count_no_rating = EXCLUDED.count_no_rating,
+         count_800_900 = EXCLUDED.count_800_900,
+         count_1000 = EXCLUDED.count_1000,
+         count_1100 = EXCLUDED.count_1100,
+         count_1200_plus = EXCLUDED.count_1200_plus`,
       [
         userId,
         stats.total_score,
@@ -127,31 +126,19 @@ async function getUserDetailedStats(userId) {
          END as category,
          COUNT(*) as count
        FROM submissions
-       WHERE user_id = ?
+       WHERE user_id = $1
        GROUP BY category
-       ORDER BY FIELD(category, 'Sin rating', '800-900', '1000', '1100', '1200+', 'Otro')`,
+       ORDER BY array_position(ARRAY['Sin rating', '800-900', '1000', '1100', '1200+', 'Otro'], category)`,
       [userId]
     );
 
-    // Obtener offset del timezone configurado
-    const { DateTime } = require('luxon');
+    // PostgreSQL convierte el timestamp UTC a la zona indicada en la consulta.
     const tz = process.env.TZ || 'America/Lima';
-    const nowTz = DateTime.now().setZone(tz);
-    const offsetMinutes = nowTz.offset; // en minutos, ej: -300 para -05:00
-    
-    // Crear string de intervalo para MySQL (ej: "-05:00")
-    const sign = offsetMinutes >= 0 ? '+' : '-';
-    const absMinutes = Math.abs(offsetMinutes);
-    const hours = Math.floor(absMinutes / 60);
-    const minutes = absMinutes % 60;
-    const intervalStr = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 
     // Progreso temporal (por día con score calculado)
-    // Usamos DATE_ADD/SUB manual porque CONVERT_TZ puede fallar si no hay tablas de timezone
-    // DATE_FORMAT para devolver STRING 'YYYY-MM-DD' y evitar problemas de timezone en frontend
     const [temporalProgress] = await db.query(
       `SELECT 
-         DATE_FORMAT(DATE_ADD(submission_time, INTERVAL ? HOUR_MINUTE), '%Y-%m-%d') as month,
+         TO_CHAR(submission_time AT TIME ZONE $1, 'YYYY-MM-DD') AS month,
          SUM(
            CASE 
              WHEN rating IS NULL OR rating = 0 THEN 1
@@ -163,15 +150,15 @@ async function getUserDetailedStats(userId) {
            END
          ) as count
        FROM submissions
-       WHERE user_id = ?
-       GROUP BY month
+       WHERE user_id = $2
+       GROUP BY 1
        ORDER BY month ASC`,
-      [intervalStr, userId]
+      [tz, userId]
     );
 
     // Tags más frecuentes
     const [submissions] = await db.query(
-      'SELECT tags FROM submissions WHERE user_id = ?',
+      'SELECT tags FROM submissions WHERE user_id = $1',
       [userId]
     );
 
@@ -209,7 +196,7 @@ async function getUserDetailedStats(userId) {
          count_1100,
          count_1200_plus
        FROM user_stats
-       WHERE user_id = ?`,
+       WHERE user_id = $1`,
       [userId]
     );
 
@@ -237,7 +224,7 @@ async function getPlatformStats() {
       SELECT u.handle, u.rating, u.rank, us.total_score, us.count_1200_plus
       FROM users u
       LEFT JOIN user_stats us ON u.id = us.user_id
-      WHERE u.rating IS NOT NULL 
+      WHERE u.rating IS NOT NULL
       ORDER BY u.rating DESC
     `);
 
@@ -271,19 +258,11 @@ async function getPlatformStats() {
  */
 async function getActivityHeatmap(userId, days = 365) {
   try {
-    const { DateTime } = require('luxon');
     const tz = process.env.TZ || 'America/Lima';
-    const nowTz = DateTime.now().setZone(tz);
-    const offsetMinutes = nowTz.offset;
-    const sign = offsetMinutes >= 0 ? '+' : '-';
-    const absMinutes = Math.abs(offsetMinutes);
-    const hours = Math.floor(absMinutes / 60);
-    const minutes = absMinutes % 60;
-    const intervalStr = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 
     const [rows] = await db.query(
       `SELECT 
-         DATE_FORMAT(DATE_ADD(submission_time, INTERVAL ? HOUR_MINUTE), '%Y-%m-%d') as date,
+         TO_CHAR(submission_time AT TIME ZONE $1, 'YYYY-MM-DD') AS date,
          SUM(
            CASE 
              WHEN rating IS NULL OR rating = 0 THEN 1
@@ -295,11 +274,11 @@ async function getActivityHeatmap(userId, days = 365) {
            END
          ) as count
        FROM submissions
-       WHERE user_id = ?
-         AND submission_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
-       GROUP BY date
+       WHERE user_id = $2
+         AND submission_time >= CURRENT_TIMESTAMP - ($3 * INTERVAL '1 day')
+       GROUP BY 1
        ORDER BY date ASC`,
-      [intervalStr, userId, days]
+      [tz, userId, days]
     );
 
     return rows;
@@ -318,26 +297,18 @@ async function getActivityHeatmap(userId, days = 365) {
  */
 async function getRecentSubmissionCounts(userId, days = 7) {
   try {
-    const { DateTime } = require('luxon');
     const tz = process.env.TZ || 'America/Lima';
-    const nowTz = DateTime.now().setZone(tz);
-    const offsetMinutes = nowTz.offset;
-    const sign = offsetMinutes >= 0 ? '+' : '-';
-    const absMinutes = Math.abs(offsetMinutes);
-    const hours = Math.floor(absMinutes / 60);
-    const minutes = absMinutes % 60;
-    const intervalStr = `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 
     const [rows] = await db.query(
       `SELECT
-         DATE_FORMAT(DATE_ADD(submission_time, INTERVAL ? HOUR_MINUTE), '%Y-%m-%d') as date,
+         TO_CHAR(submission_time AT TIME ZONE $1, 'YYYY-MM-DD') AS date,
          COUNT(*) as count
        FROM submissions
-       WHERE user_id = ?
-         AND submission_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
-       GROUP BY date
+       WHERE user_id = $2
+         AND submission_time >= CURRENT_TIMESTAMP - ($3 * INTERVAL '1 day')
+       GROUP BY 1
        ORDER BY date ASC`,
-      [intervalStr, userId, days]
+      [tz, userId, days]
     );
 
     return rows;

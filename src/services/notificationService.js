@@ -11,15 +11,15 @@ async function createNotification(type, message, relatedId = null, link = null, 
     if (relatedId) {
         const [existing] = await db.query(
             `SELECT id FROM notifications 
-             WHERE type = ? AND related_id = ? 
-             AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
+             WHERE type = $1 AND related_id = $2
+             AND created_at > CURRENT_TIMESTAMP - INTERVAL '24 hours'`,
             [type, relatedId]
         );
         if (existing.length > 0) return; // Ya existe aviso reciente
     }
 
     await db.query(
-      `INSERT INTO notifications (type, message, related_id, link, expires_at) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO notifications (type, message, related_id, link, expires_at) VALUES ($1, $2, $3, $4, $5)`,
       [type, message, relatedId, link, expiresAt]
     );
     console.log(`📢 Notificación creada: [${type}] ${message} ${link ? `(Link: ${link})` : ''}`);
@@ -37,7 +37,7 @@ async function getActiveNotifications(limit = 10) {
     `SELECT * FROM notifications 
      WHERE (expires_at IS NULL OR expires_at > NOW())
      ORDER BY created_at DESC 
-     LIMIT ?`,
+     LIMIT $1`,
     [limit]
   );
   return rows;
@@ -50,9 +50,9 @@ async function setGlobalBanner(message, type, durationHours = 24) {
     const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
     
     const queries = [
-        db.query(`INSERT INTO system_metadata (key_name, value) VALUES ('banner_msg', ?) ON DUPLICATE KEY UPDATE value = ?`, [message, message]),
-        db.query(`INSERT INTO system_metadata (key_name, value) VALUES ('banner_type', ?) ON DUPLICATE KEY UPDATE value = ?`, [type, type]),
-        db.query(`INSERT INTO system_metadata (key_name, value) VALUES ('banner_exp', ?) ON DUPLICATE KEY UPDATE value = ?`, [expiresAt, expiresAt])
+        db.query(`INSERT INTO system_metadata (key_name, value) VALUES ('banner_msg', $1) ON CONFLICT (key_name) DO UPDATE SET value = EXCLUDED.value`, [message]),
+        db.query(`INSERT INTO system_metadata (key_name, value) VALUES ('banner_type', $1) ON CONFLICT (key_name) DO UPDATE SET value = EXCLUDED.value`, [type]),
+        db.query(`INSERT INTO system_metadata (key_name, value) VALUES ('banner_exp', $1) ON CONFLICT (key_name) DO UPDATE SET value = EXCLUDED.value`, [expiresAt])
     ];
 
     await Promise.all(queries);
