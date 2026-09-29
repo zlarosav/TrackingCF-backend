@@ -221,7 +221,7 @@ router.get('/:handle/card', async (req, res) => {
       success: true,
       data: {
         handle: user.handle,
-        avatar_url: user.avatar_url,
+        avatar_url: User.formatUser(user).avatar_url,
         rating: user.rating,
         rank: user.rank,
         current_streak: user.current_streak,

@@ -119,10 +119,10 @@ router.get('/', async (req, res) => {
         parsedTags = [];
       }
       
-      return {
+      return User.formatUser({
         ...row,
         tags: parsedTags
-      };
+      });
     });
 
     res.json({

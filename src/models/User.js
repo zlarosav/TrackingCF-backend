@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { DateTime } = require('luxon');
+const normalizeCodeforcesAvatarUrl = require('../utils/normalizeCodeforcesAvatarUrl');
 
 class User {
   /**
@@ -18,6 +19,14 @@ class User {
         formatted[field] = formatted[field].toISOString();
       }
     });
+
+    // Older rows may still contain the userpic.codeforces.org host. Normalize
+    // on read as well as on write so cached user records stop requesting the
+    // host that can return HTTP 503.
+    if (Object.prototype.hasOwnProperty.call(formatted, 'avatar_url')) {
+      formatted.avatar_url = normalizeCodeforcesAvatarUrl(formatted.avatar_url);
+    }
+
     return formatted;
   }
 
